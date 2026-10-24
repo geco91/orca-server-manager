@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Orca Server Manager{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body><header><a class="brand" href="{{ url_for('overview') }}"><span class="mark">◒</span> Orca <span>Server Manager</span></a>
+{% if current_user.is_authenticated %}<form action="{{ url_for('sign_out') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="quiet">Abmelden</button></form>{% endif %}</header>
+<main>{% block content %}{% endblock %}</main><footer>Orca übernimmt die Entwicklungsarbeit. Hier richtest du den Server ein.</footer></body></html>

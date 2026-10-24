@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }} · Orca{% endblock %}
+{% block content %}<a class="back" href="{{ url_for('overview') }}">← Übersicht</a><section class="panel guide"><span class="eyebrow">SETUP & VERBINDUNGEN</span><h1>{{ title }}</h1>
+{% if name == 'server' %}
+<p>Der Manager prüft den privaten Orca-Web-Endpunkt. Ob ein Client authentifiziert ist oder ein Agent arbeitet, lässt sich daraus nicht ableiten.</p>
+<h2>Auf dem Container-Host prüfen</h2><pre>docker compose -f compose/compose.yaml ps
+docker compose -f compose/compose.yaml exec runtime orca status --json</pre><p>Der CLI-Status prüft die tatsächliche Runtime. Die Runtime startet ohne Pairing-Ausgabe, damit Zugangsdaten nicht in Logs landen.</p>
+{% elif name == 'providers' %}
+<p>Provider gehören in die Runtime. Melde dich über die nativen Werkzeuge in einem vertrauenswürdigen Terminal an. Der Manager speichert keine API-Schlüssel.</p>
+<pre>docker compose -f compose/compose.yaml exec runtime bash
+# Im Runtime-Container:
+codex --version
+codex login --device-auth
+codex login status
+opencode --version
+opencode auth login
+opencode auth list</pre><p>Codex und OpenCode sind optionale Werkzeuge und werden nicht automatisch installiert. Die Betriebsanleitung beschreibt die Installation in einem abgeleiteten Runtime-Image. Ein Login allein belegt noch keine erfolgreiche Agent-Ausführung.</p>
+{% elif name == 'github' %}
+<p>Verbinde den Account <strong>geco91</strong> über die native GitHub CLI. Verwende möglichst eng begrenzte Repository-Rechte.</p>
+<pre>docker compose -f compose/compose.yaml exec runtime bash
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
+gh auth status
+git ls-remote https://github.com/geco91/orca-server-manager.git HEAD
+git config --global user.name "DEIN NAME"
+git config --global user.email "DEINE E-MAIL"</pre><p>Die Identität selbst festlegen. Ein erfolgreicher Lesezugriff belegt keine Schreibrechte. CLI-Ausgaben nicht ungeprüft in Tickets kopieren.</p>
+{% elif name in ['desktop', 'mobile'] %}
+<p>Pairing verwendet Orcas bestehende Mechanismen. Der Manager erzeugt keine eigenen Zugangstoken und behauptet keine bestehende Geräteverbindung.</p>
+<p>Für einen neuen Link den Runtime-Dienst kurz stoppen und Orca interaktiv mit demselben persistenten Profil starten:</p>
+<pre>docker compose -f compose/compose.yaml stop runtime
+docker compose -f compose/compose.yaml run --rm --service-ports runtime \
+  orcad --bind 0.0.0.0 --port 6768 --pairing-address DEINE_LAN_ODER_VPN_ADRESSE{{ ' --mobile-pairing' if name == 'mobile' else '' }}
+# Nach dem Pairing mit Ctrl-C beenden, dann:
+docker compose -f compose/compose.yaml up -d runtime</pre>
+{% if name == 'mobile' %}<p>Orca Mobile öffnen, „Pair“ wählen und den offiziellen QR-Code scannen. Das Mobilgerät muss die Serveradresse über LAN oder VPN erreichen.</p>{% else %}<p>Den offiziellen Link im Mac-Client unter Settings → Remote Orca Servers → Add Server einfügen. Pairing-Links vertraulich behandeln.</p>{% endif %}
+<p>Der Runtime-Port ist standardmäßig nur am Host-Loopback verfügbar. Für LAN/VPN zuerst die Bind-Adresse im Deployment ausdrücklich konfigurieren.</p>
+{% elif name == 'mcp' %}
+<p>Geprüfte Community-Bridge: <a href="https://github.com/BuildContext/orca-mcp" rel="noreferrer">BuildContext/orca-mcp</a>. Sie bietet das Tool <code>orca</code> mit health, dispatch, await und release. Die Bridge benötigt dieselbe CLI und denselben Runtime-Profilzugriff.</p>
+<p>Die optionale Bridge-Konfiguration startet standardmäßig nur lesend, ohne veröffentlichten Port. Erst nach einem erfolgreichen health-Aufruf und Prüfung des Tunnels kann Delegation mit dem Toolset <code>status,dispatch</code> freigeschaltet werden.</p>
+<p>Siehe <code>docs/OPERATIONS.md</code> und <code>compose/mcp.yaml</code>. Kein Docker-Socket und keine Root-Fernsteuerung.</p>
+{% elif name == 'tunnel' %}
+<p>Verwende deinen bestehenden Secure MCP Tunnel. Dieser MVP installiert keinen neuen Tunnel und kennt dessen Produkt, Authentifizierung und Zielkonfiguration noch nicht.</p>
+<p>Ziel ist die intern auf Loopback gebundene MCP-Bridge. Ein Tunnel muss im Runtime-Netzwerk erreichbar sein, TLS und Authentifizierung erhalten und darf den Bridge-Port nicht ungeschützt veröffentlichen.</p>
+<p>Abnahme: MCP initialize → tools/list → Tool orca mit action health. Ein offener Port genügt nicht. Externe Delegation bleibt bis zur Prüfung deaktiviert.</p>
+{% endif %}
+<aside>Dieser Schritt ist eine Anleitung. Eine ausgeführte Anmeldung oder ein Client-Pairing wird erst durch einen echten Verbindungstest bestätigt.</aside></section>{% endblock %}

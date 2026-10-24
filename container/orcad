@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+umask 077
+runtime=$(cat /opt/orca/server/.runtime-node)
+exec "/opt/orca/runtimes/node-$runtime/bin/node" /opt/orca/server/orcad.js "$@"

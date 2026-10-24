@@ -1,0 +1,68 @@
+name: orca-server-manager
+services:
+  runtime:
+    image: orca-server-manager/runtime:0.1.0
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: container/runtime.Dockerfile
+    hostname: orca-runtime
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 45s
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 1024
+    mem_limit: ${ORCA_MEMORY_LIMIT:-4g}
+    volumes:
+      - runtime-home:/home/orca
+      - workspaces:/workspaces
+    ports:
+      - "${ORCA_BIND_IP:-127.0.0.1}:${ORCA_PORT:-6768}:6768"
+  manager:
+    image: orca-server-manager/manager:0.1.0
+    build:
+      context: ..
+      dockerfile: container/manager.Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      OSM_TRUSTED_HOSTS: ${OSM_TRUSTED_HOSTS:-localhost,127.0.0.1}
+      ORCA_INTERNAL_URL: http://runtime:6768
+      ORCA_WEB_URL: ${ORCA_WEB_URL:-}
+    volumes:
+      - manager-data:/data
+  https:
+    image: orca-server-manager/https:0.1.0
+    build:
+      context: ..
+      dockerfile: container/https.Dockerfile
+    user: "1000:1000"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "${OSM_BIND_IP:-127.0.0.1}:${OSM_HTTP_PORT:-80}:8080"
+      - "${OSM_BIND_IP:-127.0.0.1}:${OSM_HTTPS_PORT:-443}:8443"
+    environment:
+      OSM_ORIGIN: ${OSM_ORIGIN:-https://localhost}
+      NO_PROXY: manager,runtime,localhost,127.0.0.1
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${OSM_TLS_DIR:-../state/tls}:/certs:ro
+    depends_on:
+      manager:
+        condition: service_healthy
+    tmpfs:
+      - /config:uid=1000,gid=1000,mode=0700
+      - /data:uid=1000,gid=1000,mode=0700
+      - /tmp
+volumes:
+  runtime-home:
+  workspaces:
+  manager-data:

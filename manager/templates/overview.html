@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}<div class="heading"><div><span class="eyebrow">DEIN ENTWICKLUNGSSERVER</span><h1>Alles beginnt mit einer Verbindung.</h1><p>Richte Orca Schritt für Schritt ein. Optionale Verbindungen kannst du später ergänzen.</p></div></div>
+<section class="summary"><div class="panel"><span class="eyebrow">ORCA RUNTIME</span><h2><span class="dot {{ runtime.state }}"></span>{{ runtime.label }}</h2><p>{{ runtime.detail }}</p>
+{% if orca_url %}<a class="button" href="{{ orca_url }}" rel="noreferrer">Orca öffnen ↗</a>{% endif %}<a class="secondary" href="{{ url_for('overview') }}">Erneut prüfen</a></div>
+<div class="panel"><span class="eyebrow">MANAGER</span><h2><span class="dot reachable"></span>Bereit</h2><p>Geschützter Zugang aktiv. Einstellungen werden persistent gespeichert.</p><p class="hint">{{ free_gb }} GB frei auf dem Manager-Datenträger</p></div></section>
+<h2 class="section-title">Setup & Verbindungen</h2><div class="steps">
+{% for key, title, detail in steps %}<article class="panel step"><span class="number">{{ '%02d'|format(loop.index) }}</span><div class="step-body"><div class="step-title"><h3>{{ title }}</h3><span class="badge">{{ 'Später einrichten' if key in skipped else ('Geprüft: siehe oben' if key == 'server' else 'Nicht verifiziert') }}</span></div><p>{{ detail }}</p><div class="actions"><a href="{{ url_for('connection', name=key) }}">Einrichtung öffnen →</a>
+{% if key != 'server' %}<form method="post" action="{{ url_for('skip', name=key) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="skip" value="{{ '0' if key in skipped else '1' }}"><button class="quiet">{{ 'Wieder aufnehmen' if key in skipped else 'Für später' }}</button></form>{% endif %}</div></div></article>{% endfor %}</div>
+{% endblock %}

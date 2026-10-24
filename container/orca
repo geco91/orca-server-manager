@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+runtime=$(cat /opt/orca/server/.runtime-node)
+exec "/opt/orca/runtimes/node-$runtime/bin/node" /opt/orca/server/out/cli/index.js "$@"

@@ -1,0 +1,11 @@
+{
+    admin off
+    auto_https off
+}
+http://:8080 {
+    redir {$OSM_ORIGIN}{uri} 308
+}
+https://:8443 {
+    tls /certs/server.crt /certs/server.key
+    reverse_proxy manager:8080
+}

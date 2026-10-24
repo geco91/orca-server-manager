@@ -1,0 +1,25 @@
+# Optional override. Start only after provisioning state/secrets/bridge_token.
+services:
+  bridge:
+    image: orca-server-manager/mcp:0.1.0
+    build:
+      context: ..
+      dockerfile: container/mcp.Dockerfile
+    network_mode: service:runtime
+    restart: unless-stopped
+    init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      ORCA_BRIDGE_TOOLSETS: ${ORCA_BRIDGE_TOOLSETS:-status}
+      ORCA_BRIDGE_CLI_HARDENING: "1"
+    volumes:
+      - runtime-home:/home/orca
+      - workspaces:/workspaces
+    secrets: [bridge_token]
+    depends_on:
+      runtime:
+        condition: service_healthy
+secrets:
+  bridge_token:
+    file: ../state/secrets/bridge_token

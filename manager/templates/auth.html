@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}<section class="auth panel"><span class="eyebrow">SICHERER ZUGANG</span>
+<h1>{{ 'Willkommen an Bord.' if bootstrap else 'Willkommen zurück.' }}</h1>
+<p>{{ 'Richte deinen Administrator ein, um den Server zu verbinden.' if bootstrap else 'Melde dich an, um deinen Server zu verwalten.' }}</p>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if bootstrap %}<label for="token">Einrichtungstoken</label><input id="token" name="token" type="password" autocomplete="off" required>
+<p class="hint">Im Terminal des Hosts: <code>docker compose -f compose/compose.yaml exec manager cat /data/bootstrap.token</code>. Der Token wird nach der Einrichtung gelöscht.</p>{% endif %}
+<label for="password">Administrator-Passwort</label><input id="password" name="password" type="password" minlength="{{ 14 if bootstrap else 1 }}" maxlength="256" autocomplete="{{ 'new-password' if bootstrap else 'current-password' }}" required>
+{% if bootstrap %}<p class="hint">Mindestens 14 Zeichen. Wähle ein eigenes, starkes Passwort.</p>{% endif %}
+<button>{{ 'Administrator einrichten' if bootstrap else 'Anmelden' }}</button></form></section>{% endblock %}
