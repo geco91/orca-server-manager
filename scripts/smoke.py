@@ -34,14 +34,19 @@ def main():
     )
 
     def compose(*args):
-        return subprocess.run(
+        result = subprocess.run(
             command + list(args),
             cwd=ROOT,
             env=environment,
-            check=True,
+            check=False,
             text=True,
             capture_output=True,
-        ).stdout
+        )
+        if result.returncode:
+            # Compose progress/errors contain no response bodies or secret values.
+            # Never echo stdout: some exec calls deliberately read a private token.
+            raise RuntimeError(f"Compose {args[0]} failed: {result.stderr.strip()}")
+        return result.stdout
 
     tls = ssl.create_default_context(cafile=str(ROOT / "state/tls/server.crt"))
     browser = build_opener(
@@ -71,7 +76,7 @@ def main():
                 if status.get("result", {}).get("runtime", {}).get("reachable") is not True:
                     raise ValueError("Orca RPC is not reachable")
                 return
-            except (URLError, OSError, ValueError, subprocess.CalledProcessError):
+            except (URLError, OSError, ValueError, RuntimeError):
                 time.sleep(1)
         raise RuntimeError("Stack did not become ready within 60 seconds")
 
