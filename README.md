@@ -76,6 +76,10 @@ Entwicklungsprozess auf deren tatsächlich erreichbaren Endpunkt zeigen.
 
 ## Dokumentation
 
+Die [interaktive Mock-WebUI](mock/README.md) lässt sich ohne Server und Zugangsdaten
+durchspielen: `python3 scripts/export-mock.py` erzeugt eine einzelne HTML-Datei zum
+lokalen Öffnen im Browser. Alle Aktionen und Verbindungen darin sind simuliert.
+
 - [Originalauftrag, unverändert](docs/PROJECT_BRIEF.md)
 - [Architektur und recherchierte Entscheidungen](docs/ARCHITECTURE.md)
 - [Betrieb, Provider, Pairing, MCP, Backup und Recovery](docs/OPERATIONS.md)

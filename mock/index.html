@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Orca Server Manager · Interaktive Demo</title>
+  <style>/* MOCK_STYLES */</style>
+</head>
+<body>
+  <div class="demo-banner"><strong>INTERAKTIVE DEMO</strong><span>Alle Verbindungen und Prüfergebnisse sind simuliert.</span></div>
+  <header>
+    <button class="brand brand-button" data-action="overview"><span class="mark">◒</span> Orca <span>Server Manager</span></button>
+    <div class="header-actions"><span class="demo-host">orca-pilot · Demo-Server</span><button class="quiet" data-action="help">Über diese Demo</button></div>
+  </header>
+  <div class="demo-toolbar">
+    <label for="scenario">Szenario</label>
+    <select id="scenario"><option value="fresh">Neuinstallation</option><option value="ready">Alles eingerichtet</option><option value="runtime-error">Orca startet nicht</option><option value="tunnel-error">Tunnel-Anmeldung scheitert</option></select>
+    <span class="toolbar-note">Ohne Zugangsdaten ausprobieren</span>
+    <button class="quiet" data-action="reset">Demo zurücksetzen</button>
+  </div>
+  <main id="app"></main>
+  <div id="announcer" class="sr-only" aria-live="polite"></div>
+  <dialog id="demo-help"><div class="dialog-body"><span class="eyebrow">VORSCHAU DES EINRICHTUNGSABLAUFS</span><h2>Einmal alles durchspielen.</h2><p>Diese eigenständige Demo zeigt den geplanten interaktiven Setup-Ablauf im Design des Managers. Die laufende Manager-Version enthält derzeit Anleitungen und technische Prüfungen; die hier gezeigten Verbindungsaktionen sind ein UI-Prototyp.</p><p>Es werden keine Server angesprochen, keine Agenten gestartet und keine Anmeldedaten abgefragt. Auch das Geräte-Pairing und der MCP-Test sind simuliert.</p><p>Dein Fortschritt bleibt nur in diesem geöffneten Tab. Neu laden oder „Demo zurücksetzen“ beginnt von vorn. Die Beispieldaten werden nicht auf dem Gerät gespeichert.</p><button data-action="close-help">Verstanden</button></div></dialog>
+  <footer>Orca übernimmt die Entwicklungsarbeit. Der Manager begleitet Einrichtung und Betrieb. · Demo</footer>
+  <script>/* MOCK_SCRIPT */</script>
+</body>
+</html>
