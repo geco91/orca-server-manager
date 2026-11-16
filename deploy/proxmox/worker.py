@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -119,17 +120,26 @@ class Worker:
     def own_container(self, vmid, role="runtime"):
         data = self.run(["pct", "config", str(vmid)])
         expected = f"OSM:{self.cfg['installation']}:{role}"
-        if not any(
-            line.startswith("description: ") and expected in line for line in data.splitlines()
-        ):
+        if not self.has_marker(data, expected):
             raise DeploymentError("The container does not belong to this scoped deployment.")
+
+    @staticmethod
+    def has_marker(config, expected):
+        # PVE CLI config output URL-encodes descriptions, including ':' and newlines.
+        value = next(
+            (
+                line.removeprefix("description: ")
+                for line in config.splitlines()
+                if line.startswith("description: ")
+            ),
+            "",
+        )
+        return expected in unquote(value).splitlines()
 
     def own_builder(self):
         data = self.run(["qm", "config", str(self.cfg["builder_id"])])
         expected = f"OSM:{self.cfg['installation']}:builder"
-        if not any(
-            line.startswith("description: ") and expected in line for line in data.splitlines()
-        ):
+        if not self.has_marker(data, expected):
             raise DeploymentError("The VM is not the assigned builder for this deployment.")
 
     def running(self, vmid):
@@ -585,6 +595,8 @@ def main():
     if os.geteuid() != 0 or not Path("/etc/pve").is_dir():
         parser.error("Run only as the administrator on the assigned Proxmox host.")
     cfg = load_config(args.config)
+    if not Path(cfg["data"]).is_mount():
+        parser.error("The dedicated data filesystem is not mounted; no operation was started.")
     lock_path = Path(cfg["base"]) / "worker.lock"
     with lock_path.open("a") as lock:
         try:

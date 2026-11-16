@@ -2,6 +2,7 @@
 Description=Orca Server Manager scoped OCI deployment worker
 After=pve-cluster.service network-online.target
 Wants=network-online.target
+RequiresMountsFor=@DATA@
 
 [Service]
 Type=oneshot

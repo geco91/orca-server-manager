@@ -255,3 +255,27 @@ def test_untrusted_queue_cannot_expand_the_scoped_protocol(extra):
     document = job() | extra
     with pytest.raises(ValueError):
         validate_request(document, document["id"])
+
+
+def test_missing_data_mount_stops_the_host_worker_before_writes(deployment, monkeypatch):
+    from deploy.proxmox import worker as module
+
+    worker, pve = deployment
+    original = Path.is_dir
+    monkeypatch.setattr(module.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        Path, "is_dir", lambda path: True if str(path) == "/etc/pve" else original(path)
+    )
+    monkeypatch.setattr(module, "load_config", lambda _: worker.cfg)
+    monkeypatch.setattr(module.sys, "argv", ["worker.py", "--config", str(worker.config_path)])
+    with pytest.raises(SystemExit) as error:
+        module.main()
+    assert error.value.code == 2
+    assert not worker.inflight.exists()
+    assert not pve.commands
+
+
+def test_native_percent_encoded_description_preserves_exact_scope_marker():
+    assert Worker.has_marker("description: OSM%3Apilot%3Abuilder%0Anotes", "OSM:pilot:builder")
+    assert Worker.has_marker("description: OSM:pilot:runtime", "OSM:pilot:runtime")
+    assert not Worker.has_marker("description: OSM%3Apilot%3Aruntime-other", "OSM:pilot:runtime")

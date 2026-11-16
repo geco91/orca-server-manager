@@ -185,8 +185,10 @@ def apply(cfg, source_config, archive_dir):
     unit = Path("/etc/systemd/system")
     for suffix in ["service", "timer"]:
         content = (ROOT / f"deploy/proxmox/orca-manager-worker.{suffix}").read_text()
-        content = content.replace("@CHECKOUT@", str(ROOT)).replace(
-            "@CONFIG@", str(base / "deployment.json")
+        content = (
+            content.replace("@CHECKOUT@", str(ROOT))
+            .replace("@CONFIG@", str(base / "deployment.json"))
+            .replace("@DATA@", str(data))
         )
         destination = unit / f"orca-manager-{cfg['installation']}.{suffix}"
         if destination.exists():
