@@ -40,6 +40,12 @@ credentials and pairing state stay in runtime HOME. The manager cannot read it.
 A root-owned dedicated data filesystem contains queue, images, runtime data and
 backups; large image/backup files do not land on the Proxmox host root filesystem.
 
+Proxmox extracts OCI images as mapped root (host UID 100000), so it cannot read
+root-only private archives directly. Each import uses a temporary image copy in
+an administrator-owned directory with no listing permission, readable only by
+that mapped UID (mode 0400). The copy is removed after success or failure; the
+private profile and backup tree remain inaccessible to the extractor.
+
 ## Version changes
 
 Orca release labels, tags and pre-release flags are read from

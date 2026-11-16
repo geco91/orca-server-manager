@@ -87,6 +87,7 @@ def plan(cfg, archive_dir):
             ["pct", "start", str(cfg["manager_id"])],
         ],
         "notes": [
+            "The OCI extractor reads a temporary copy as mapped root; private backups stay inaccessible.",
             "Requires a dedicated builder already assigned with the matching ownership marker.",
             "Requires an empty, dedicated, mounted data filesystem; never formats disks.",
             "Creates two unprivileged OCI containers; does not replace an existing guest.",
@@ -96,14 +97,29 @@ def plan(cfg, archive_dir):
     }
 
 
-def apply(cfg, source_config, archive_dir):
+def validate_resume(saved, cfg):
+    fields = ["installation", "data", "runtime_id", "manager_id", "builder_id", "version"]
+    if (
+        any(saved.get(key) != cfg.get(key) for key in fields)
+        or type(saved.get("generation")) is not int
+        or saved["generation"] != 0
+    ):
+        raise DeploymentError("Only the same unfinished initial installation may be resumed.")
+    if saved.get("previous") or saved.get("pending"):
+        raise DeploymentError("Use deployment recovery for an existing version change.")
+
+
+def apply(cfg, source_config, archive_dir, resume=False):
     if os.geteuid() != 0 or not Path("/etc/pve").is_dir():
         raise DeploymentError("Apply only as administrator on the assigned test Proxmox host.")
     # Full administrator-owned configuration validation happens before any change.
     cfg = load_config(source_config)
     base, data = Path(cfg["base"]), Path(cfg["data"])
-    if base.exists():
+    if base.exists() and not resume:
         raise DeploymentError("Deployment base already exists; refusing an overwrite.")
+    if resume:
+        saved = read_document(base / "deployment.json")
+        validate_resume(saved, cfg)
     if not data.is_mount() or data.is_symlink():
         raise DeploymentError("The data directory must be a dedicated mounted filesystem.")
     if data.stat().st_uid != 0 or data.stat().st_mode & 0o022:
@@ -121,7 +137,7 @@ def apply(cfg, source_config, archive_dir):
     for suffix in ["service", "timer"]:
         if (Path("/etc/systemd/system") / f"orca-manager-{cfg['installation']}.{suffix}").exists():
             raise DeploymentError("A worker unit with this installation name already exists.")
-    if any(item.name != "lost+found" for item in data.iterdir()):
+    if not resume and any(item.name != "lost+found" for item in data.iterdir()):
         raise DeploymentError("The dedicated data filesystem is not empty.")
     for vmid in [cfg["runtime_id"], cfg["manager_id"]]:
         existing = subprocess.run(
@@ -155,7 +171,7 @@ def apply(cfg, source_config, archive_dir):
         archive_check(archive, metadata["archives"][role]["sha256"])
     if shutil.disk_usage(data).free < 10 * 2**30:
         raise DeploymentError("At least 10 GiB must be free on the dedicated data filesystem.")
-    base.mkdir(mode=0o700, parents=True)
+    base.mkdir(mode=0o700, parents=True, exist_ok=resume)
     # Keep the root-owned parent out of both guests. Only explicit children are mounted.
     for path, owner, mode in [
         (data / "control", 0, 0o755),
@@ -169,15 +185,19 @@ def apply(cfg, source_config, archive_dir):
         (data / "private/runtime-tunnel", 0, 0o755),
         (data / "manager", 100000, 0o700),
     ]:
-        path.mkdir(mode=mode)
+        if path.is_symlink():
+            raise DeploymentError("An installation data directory cannot be a symlink.")
+        path.mkdir(mode=mode, exist_ok=resume)
         os.chown(path, owner, owner)
         os.chmod(path, mode)
     cfg["generation"] = 0
     atomic_document(base / "deployment.json", cfg)
     # Persist the execution plan before importing; failures leave inspectable resources, never delete.
     atomic_document(base / "installation-plan.json", plan(cfg, archive_dir))
-    run(worker.runtime_create_command(cfg["runtime_id"], expected["runtime"]), timeout=300)
-    run(manager_create_command(cfg, expected["manager"]), timeout=300)
+    with worker.import_archive(expected["runtime"]) as staged:
+        run(worker.runtime_create_command(cfg["runtime_id"], staged), timeout=300)
+    with worker.import_archive(expected["manager"]) as staged:
+        run(manager_create_command(cfg, staged), timeout=300)
     run(["pct", "set", str(cfg["runtime_id"]), "--onboot", "1"])
     run(["pct", "start", str(cfg["runtime_id"])], timeout=90)
     run(["pct", "start", str(cfg["manager_id"])], timeout=90)
@@ -204,10 +224,13 @@ def main():
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--archives", type=Path, required=True)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument(
+        "--resume", action="store_true", help="Resume before either initial CT exists."
+    )
     args = parser.parse_args()
     cfg = read_document(args.config)
     if args.apply:
-        apply(cfg, args.config, args.archives.resolve())
+        apply(cfg, args.config, args.archives.resolve(), resume=args.resume)
     else:
         print(json.dumps(plan(cfg, args.archives.resolve()), indent=2))
 

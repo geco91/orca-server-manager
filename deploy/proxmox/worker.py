@@ -7,10 +7,13 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shlex
+import shutil
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -357,9 +360,30 @@ class Worker:
     def candidate(self, archive):
         vmid = int(self.run(["pvesh", "get", "/cluster/nextid"]).strip())
         # Creation is atomic in PVE; no force/overwrite or unrelated container deletion.
-        self.run(self.runtime_create_command(vmid, archive), timeout=300)
+        with self.import_archive(archive) as staged:
+            self.run(self.runtime_create_command(vmid, staged), timeout=300)
         self.own_container(vmid)
         return vmid
+
+    @contextmanager
+    def import_archive(self, archive):
+        # PVE's OCI extractor runs as mapped root (host UID 100000). Give it
+        # read-only access to a temporary image, never to the private backup tree.
+        directory = self.data / "imports"
+        directory.mkdir(mode=0o711, exist_ok=True)
+        info = directory.stat(follow_symlinks=False)
+        if directory.is_symlink() or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+            raise DeploymentError("The OCI import directory is not administrator-controlled.")
+        stage = directory / (secrets.token_hex(16) + ".tar")
+        try:
+            fd = os.open(stage, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "wb") as target, Path(archive).open("rb") as source:
+                shutil.copyfileobj(source, target, length=4 * 1024 * 1024)
+            os.chown(stage, 100000, 100000)
+            os.chmod(stage, 0o400)
+            yield stage
+        finally:
+            stage.unlink(missing_ok=True)
 
     def stop(self, vmid):
         if self.running(vmid):

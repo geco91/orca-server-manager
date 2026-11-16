@@ -74,6 +74,14 @@ creates two unprivileged CTs with explicit mounts; starts them; and installs
 privileged mode or automatic cleanup are used. Failed imports leave inspectable
 partial resources and the saved installation plan; the installer refuses to
 reuse a previous base directory. Do not rerun by deleting it blindly.
+If the initial import failed before either CT exists, inspect the native PVE task
+log and the saved plan, correct the cause, then explicitly use `--apply --resume`.
+This path requires the same initial installation, generation zero and both IDs
+still unused. It never replaces an existing CT or reinitializes an updated deployment.
+
+The importer temporarily stages each image for mapped root UID 100000, because
+PVE extracts unprivileged OCI archives in a user namespace. Only that UID can
+read the copy; private backup/profile directories keep their original protection.
 
 The queue directory is shared, but only its `requests` subdirectory is writable
 by the web process. Status/results are host-owned. Runtime HOME/workspaces and

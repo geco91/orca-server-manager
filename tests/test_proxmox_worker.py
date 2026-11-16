@@ -84,7 +84,11 @@ def deployment(tmp_path, monkeypatch):
         path.mkdir(parents=True, exist_ok=True)
     (worker.home / "profile").write_text("before-update")
     (worker.workspaces / "work").write_text("before-update")
-    monkeypatch.setattr(worker, "build", lambda version: tmp_path / f"runtime-{version}.oci.tar")
+    archive = tmp_path / "runtime.oci.tar"
+    archive.write_bytes(b"disposable image fixture")
+    archive.chmod(0o600)
+    monkeypatch.setattr(worker, "build", lambda version: archive)
+    monkeypatch.setattr("deploy.proxmox.worker.os.chown", lambda *_: None)
     return worker, pve
 
 
@@ -279,3 +283,50 @@ def test_native_percent_encoded_description_preserves_exact_scope_marker():
     assert Worker.has_marker("description: OSM%3Apilot%3Abuilder%0Anotes", "OSM:pilot:builder")
     assert Worker.has_marker("description: OSM:pilot:runtime", "OSM:pilot:runtime")
     assert not Worker.has_marker("description: OSM%3Apilot%3Aruntime-other", "OSM:pilot:runtime")
+
+
+def test_native_import_stages_only_an_image_and_removes_it_after_failure(
+    deployment, tmp_path, monkeypatch
+):
+    worker, _ = deployment
+    archive = tmp_path / "private-image.tar"
+    archive.write_bytes(b"verified image bytes")
+    archive.chmod(0o600)
+    owners = []
+    monkeypatch.setattr(
+        "deploy.proxmox.worker.os.chown", lambda path, uid, gid: owners.append((uid, gid))
+    )
+    with pytest.raises(DeploymentError), worker.import_archive(archive) as staged:
+        assert staged.parent == worker.data / "imports"
+        assert staged.read_bytes() == archive.read_bytes()
+        assert staged.stat().st_mode & 0o777 == 0o400
+        assert owners == [(100000, 100000)]
+        raise DeploymentError("Native import failed")
+    assert not staged.exists()
+    assert archive.read_bytes() == b"verified image bytes"
+    assert archive.stat().st_mode & 0o777 == 0o600
+
+
+def test_native_import_rejects_a_writable_shared_staging_directory(deployment, tmp_path):
+    worker, _ = deployment
+    imports = worker.data / "imports"
+    imports.mkdir(mode=0o777)
+    imports.chmod(0o777)
+    archive = tmp_path / "image.tar"
+    archive.write_bytes(b"image")
+    with pytest.raises(DeploymentError), worker.import_archive(archive):
+        raise AssertionError("Untrusted staging must never reach native import")
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [{"generation": 1}, {"runtime_id": 999}, {"previous": {"id": 199}}, {"installation": "other"}],
+)
+def test_initial_resume_cannot_reinitialize_a_different_or_updated_deployment(deployment, changed):
+    from deploy.proxmox.install import validate_resume
+
+    worker, _ = deployment
+    saved = worker.cfg | {"generation": 0}
+    validate_resume(saved, worker.cfg)
+    with pytest.raises(DeploymentError):
+        validate_resume(saved | changed, worker.cfg)
