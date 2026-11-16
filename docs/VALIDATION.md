@@ -15,7 +15,10 @@
 - `python3 scripts/smoke.py`: passed using only its own disposable Compose
   resources. Verified HTTPS/certificate and HTTP redirect, English bootstrap,
   session persistence/CSRF, real native RPC, bridge MCP initialize/tools/health
-  and data after container recreation. No paid agent dispatched.
+  and data after container recreation. An unreadable optional bridge token was
+  also verified to leave the runtime available. The temporary test nonce supports
+  CI users whose UID differs from runtime UID 1000; its host parent stays private.
+  No paid agent dispatched.
 - Chromium/Playwright: **18 offline-prototype checks** and **10 actual-manager
   browser checks**, including desktop/mobile layout and English text. Actual
   browser update/rollback requests used the real Flask queue with a clearly

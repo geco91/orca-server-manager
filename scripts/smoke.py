@@ -43,7 +43,10 @@ def main():
         temporary = Path(directory)
         token_file = temporary / "bridge-token"
         token_file.write_text(secrets.token_urlsafe(36))
-        token_file.chmod(0o600)
+        # Compose file secrets retain the host UID. The temporary parent is 0700;
+        # allow runtime UID 1000 to read this disposable nonce on UID 1001 CI too.
+        # Native PVE production secrets remain 0600 with mapped ownership.
+        token_file.chmod(0o444)
         environment = dict(
             os.environ,
             OSM_HTTP_PORT=str(http_port),
@@ -183,8 +186,15 @@ def main():
             assert (
                 native["runtime"]["reachable"] and native["integrations"]["mcp"]["state"] == "ready"
             )
+            token_file.chmod(0o000)
+            compose("up", "-d", "--force-recreate", "--wait", "--wait-timeout", "120", "runtime")
+            native = json.loads(
+                compose("exec", "-T", "runtime", "node", "/opt/osm/runtime-status.cjs")
+            )
+            assert native["runtime"]["reachable"] is True
+            assert native["integrations"]["mcp"]["state"] == "error"
             print(
-                "PASS: verified TLS/redirect, English administrator setup, session, CSRF, native Orca 1.4.261 RPC, installed provider CLIs, real MCP health and persistent data after recreation. No agent dispatched; no tunnel or Proxmox deployment claimed."
+                "PASS: verified TLS/redirect, English administrator setup, session, CSRF, native Orca 1.4.261 RPC, installed provider CLIs, real MCP health, persistence after recreation and runtime startup with unreadable optional bridge configuration. No agent dispatched; no tunnel or Proxmox deployment claimed."
             )
         finally:
             compose("down", "--volumes", "--remove-orphans")

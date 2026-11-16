@@ -40,12 +40,16 @@ process.on('SIGTERM', () => shutdown());
 process.on('SIGINT', () => shutdown());
 start('/usr/local/bin/orca', ['serve', '--bind', '0.0.0.0', '--port', '6768', '--no-pairing'], process.env);
 const tokenFile = '/run/secrets/bridge_token';
+function privateText(file) {
+  try {return fs.readFileSync(file, 'utf8').trim();}
+  catch {console.error('Optional integration configuration is unreadable.');return null;}
+}
 if (fs.existsSync(tokenFile)) {
-  const token = fs.readFileSync(tokenFile, 'utf8').trim();
+  const token = privateText(tokenFile);
   const toolsetsFile = '/run/secrets/bridge-toolsets';
-  const requested = fs.existsSync(toolsetsFile) ? fs.readFileSync(toolsetsFile, 'utf8').trim() : process.env.ORCA_BRIDGE_TOOLSETS;
+  const requested = fs.existsSync(toolsetsFile) ? privateText(toolsetsFile) : process.env.ORCA_BRIDGE_TOOLSETS;
   const toolsets = requested === 'status,dispatch' ? requested : 'status';
-  if (token.length >= 32) {
+  if (token && token.length >= 32) {
     start(process.execPath, ['/opt/orca-mcp/server.mjs', '--port', '8787'],
       {...process.env, ORCA_CLI_COMMAND: '/usr/local/bin/orca', ORCA_BRIDGE_TOKEN: token, ORCA_BRIDGE_TOOLSETS: toolsets, ORCA_BRIDGE_CLI_HARDENING: '1'}, true);
   }

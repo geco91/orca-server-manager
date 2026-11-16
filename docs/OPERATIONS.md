@@ -130,7 +130,10 @@ Use the already selected **OpenAI Secure MCP Tunnel**:
   still pending; the manager does not label it connected from a PID alone.
 
 The Docker trial can enable just the bridge with `compose/mcp.yaml` and a private
-`OSM_BRIDGE_TOKEN_FILE`. No external coordinator is connected by the smoke test.
+`OSM_BRIDGE_TOKEN_FILE`. File-backed Docker secrets retain host ownership; make
+sure the file is readable by container UID 1000 while keeping its host parent
+private. The native deployment uses explicit host UID 101000 and mode 0600.
+No external coordinator is connected by the smoke test.
 
 ## Recovery and data responsibility
 
