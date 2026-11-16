@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -296,12 +297,17 @@ def test_native_import_stages_only_an_image_and_removes_it_after_failure(
     monkeypatch.setattr(
         "deploy.proxmox.worker.os.chown", lambda path, uid, gid: owners.append((uid, gid))
     )
-    with pytest.raises(DeploymentError), worker.import_archive(archive) as staged:
-        assert staged.parent == worker.data / "imports"
-        assert staged.read_bytes() == archive.read_bytes()
-        assert staged.stat().st_mode & 0o777 == 0o400
-        assert owners == [(100000, 100000)]
-        raise DeploymentError("Native import failed")
+    previous_umask = os.umask(0o077)
+    try:
+        with pytest.raises(DeploymentError), worker.import_archive(archive) as staged:
+            assert staged.parent == worker.data / "imports"
+            assert staged.parent.stat().st_mode & 0o777 == 0o711
+            assert staged.read_bytes() == archive.read_bytes()
+            assert staged.stat().st_mode & 0o777 == 0o400
+            assert owners == [(100000, 100000)]
+            raise DeploymentError("Native import failed")
+    finally:
+        os.umask(previous_umask)
     assert not staged.exists()
     assert archive.read_bytes() == b"verified image bytes"
     assert archive.stat().st_mode & 0o777 == 0o600

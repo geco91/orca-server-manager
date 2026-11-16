@@ -374,6 +374,8 @@ class Worker:
         info = directory.stat(follow_symlinks=False)
         if directory.is_symlink() or info.st_uid != os.geteuid() or info.st_mode & 0o022:
             raise DeploymentError("The OCI import directory is not administrator-controlled.")
+        # The worker uses umask 0077; mkdir alone would remove the required traverse bits.
+        os.chmod(directory, 0o711)
         stage = directory / (secrets.token_hex(16) + ".tar")
         try:
             fd = os.open(stage, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
