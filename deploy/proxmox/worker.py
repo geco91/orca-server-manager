@@ -177,7 +177,7 @@ class Worker:
                 "exec",
                 str(vmid),
                 "--",
-                "runuser",
+                "/usr/sbin/runuser",
                 "-u",
                 "orca",
                 "--",

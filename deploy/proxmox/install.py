@@ -181,7 +181,7 @@ def apply(cfg, source_config, archive_dir, resume=False):
         (data / "private/runtime-data/workspaces", 101000, 0o700),
         (data / "private/runtime-secrets", 101000, 0o700),
         (data / "private/runtime-tunnel", 0, 0o755),
-        (data / "manager", 100000, 0o700),
+        (data / "manager", 100000, 0o711),
     ]:
         if path.is_symlink():
             raise DeploymentError("An installation data directory cannot be a symlink.")

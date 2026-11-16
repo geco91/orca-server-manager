@@ -28,7 +28,7 @@ COPY --chmod=644 scripts/mcp-smoke.mjs /opt/osm/mcp-health.mjs
 USER 1000:1000
 ENV HOME=/home/orca ORCA_USER_DATA=/home/orca/.config/Orca \
     ORCA_USER_DATA_PATH=/home/orca/.config/Orca ORCA_TELEMETRY_DISABLED=1 \
-    NODE_USE_ENV_PROXY=1 PATH=/opt/orca/node-bin:/usr/local/bin:/usr/bin:/bin
+    NODE_USE_ENV_PROXY=1 PATH=/opt/orca/node-bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 WORKDIR /workspaces
 EXPOSE 6768
 HEALTHCHECK --interval=20s --timeout=15s --start-period=90s --retries=3 \
