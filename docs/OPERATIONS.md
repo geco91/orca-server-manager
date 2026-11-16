@@ -1,135 +1,155 @@
-# Betrieb und Wiederherstellung
+# Operating the pilot
 
-Alle Compose-Kommandos aus dem Repository-Hauptverzeichnis ausführen. Bei eigener
-Konfiguration `--env-file .env` ergänzen. Das Cloud-Override nur in der Cloud nutzen.
+## Administrator and HTTPS
 
-## Start, Diagnose und Administrator
-
-```bash
-docker compose --env-file .env -f compose/compose.yaml up -d --wait
-docker compose --env-file .env -f compose/compose.yaml ps
-docker compose --env-file .env -f compose/compose.yaml exec runtime orca status --json
-docker compose --env-file .env -f compose/compose.yaml logs --tail=100 runtime manager https
-docker compose --env-file .env -f compose/compose.yaml exec manager \
-  flask --app manager.app reset-admin
-```
-
-`reset-admin` fragt das Passwort verdeckt ab und invalidiert vorhandene Sessions.
-Ein HTTP-Healthcheck des Managers ist intern ohne Anmeldung erreichbar und
-enthält nur den Dienststatus. Diagnose-API und Verbindungsseiten sind geschützt.
-Die Oberfläche führt keine beliebigen Kommandos aus und installiert nichts als root.
-Passwortänderungen bleiben ein lokaler Administratorvorgang.
-
-## Native Provider und GitHub
-
-Codex und OpenCode zunächst im abgeleiteten Runtime-Image installieren, Versionen
-und Paketintegritäten festlegen. Sie sind im schlanken Basisimage noch nicht
-enthalten. Installation per `docker compose exec` ist nur temporär und geht bei
-Image-Neuerstellung verloren. Anmeldedaten dagegen gehören in das persistente
-HOME, nicht in ein Dockerfile. Anschließend in einem vertrauenswürdigen Terminal:
+The manager starts independently of the Orca runtime. In the native deployment,
+read its one-time token from an authorized Proxmox administrator terminal:
 
 ```bash
-docker compose --env-file .env -f compose/compose.yaml exec runtime bash
-# Innerhalb der Runtime, nachdem die jeweilige CLI installiert ist:
-codex --version
-codex login --device-auth
-codex login status
-opencode --version
-opencode auth login
-opencode auth list
-# GitHub CLI und git sind bereits enthalten:
-gh auth login --hostname github.com --git-protocol https --web
-gh auth setup-git
-gh auth status
-git ls-remote https://github.com/geco91/orca-server-manager.git HEAD
+pct exec MANAGER_CT_ID -- cat /data/manager/bootstrap.token
 ```
 
-Git-Identität selbst festlegen. Leserechte, Schreibrechte und GitHub-API-Zugriff
-separat prüfen. In Codex Cloud zuerst den injizierten Git-Zugang weiterverwenden;
-fehlende Tokenvariablen bedeuten nicht, dass GitHub-Zugang fehlt. Ein nativer
-Provider-Login auf der Ziel-VM ist ein eigener Vorgang und wird nicht aus der
-Cloud übernommen. Einen Agenten erst nach vorhandenem Provider-Login mit einem
-harmlosen Auftrag in einem Testrepository abnehmen.
-
-## Mac und Mobile pairen
-
-Die Runtime startet standardmäßig ohne Pairing-Ausgabe. Für die Pilotverbindung
-die Runtime kurz stoppen, dann einmalig interaktiv im gleichen Profil starten:
+Open the manager guest's HTTPS address, verify its certificate and choose your
+own 14–256 character password. The token is removed after setup. Existing
+certificates and the manager's SQLite/session files survive recreation. For an
+administrator password reset, use the local terminal, never an unauthenticated
+web action:
 
 ```bash
-docker compose --env-file .env -f compose/compose.yaml stop runtime
-docker compose --env-file .env -f compose/compose.yaml run --rm --service-ports runtime \
-  orcad --bind 0.0.0.0 --port 6768 --pairing-address DEINE_LAN_ODER_VPN_ADRESSE \
-  --web-client-root /opt/orca/web
-# Mobile: --mobile-pairing ergänzen. Nicht parallel mit derselben Profil-Volume starten.
-# Link auf dem Client übernehmen; danach Ctrl-C und regulär starten:
-docker compose --env-file .env -f compose/compose.yaml up -d runtime
+pct exec MANAGER_CT_ID -- runuser -u manager -- /app/.venv/bin/flask \
+  --app manager.app reset-admin
 ```
 
-Für Remote-Clients `ORCA_BIND_IP` auf die passende LAN/VPN-Schnittstelle setzen.
-Manager-HTTPS sichert nicht automatisch den separaten Orca-Port. Keine Ports
-ungeprüft ins öffentliche Internet freigeben. Pairing-Links sind Zugangsdaten;
-nicht in Logs oder `.env` ablegen. Echte Wiederverbindung nach dem Neustart auf
-Mac und Mobile noch separat abnehmen.
+A reset invalidates old sessions. In the Docker trial use the corresponding
+`docker compose exec` command. Certificate files are `/data/tls/server.crt` and
+`server.key`; keep the private key mode 0600. The default self-signed certificate
+includes localhost and the guest's detected IPv4 address. If DHCP changes that
+address or a DNS name is used, install a matching certificate and restart the
+manager. Do not disable TLS verification.
 
-## Optionale MCP Bridge
+## Native setup, not a second Orca
+
+The connection page shows the current runtime CT ID. Enter it as the Orca user
+from the Proxmox administrator console:
 
 ```bash
-mkdir -p state/secrets
-chmod 700 state/secrets
-# Nur wenn noch kein Token existiert; vorhandene Tokens niemals überschreiben:
-(umask 077; test -e state/secrets/bridge_token || openssl rand -hex 32 > state/secrets/bridge_token)
-docker compose --env-file .env -f compose/compose.yaml -f compose/mcp.yaml up -d bridge
+pct exec RUNTIME_CT_ID -- runuser -u orca -- /bin/bash
 ```
 
-Token muss für Container-UID 1000 lesbar sein, Datei 0600, Verzeichnis 0700.
-Die Bridge bleibt auf Loopback im Netzwerknamespace der Runtime. Es wird kein
-MCP-Port veröffentlicht. Ein vorhandener Tunnel muss diesen Endpunkt aus
-demselben Netzwerknamespace erreichen können; dessen Integration ist noch offen.
-Runtime-Neuerstellung erfordert auch eine Neuerstellung des Bridge-Containers,
-weil dessen Netzwerknamespace an den Runtime-Container gebunden ist.
+Run native commands there. Codex/OpenCode are installed as pinned provider-image
+extensions; installation does not mean authentication. Add accounts with
+`orca account add --agent codex` or `orca account add --agent opencode` and inspect
+`orca account list --json`. Follow Orca/provider login prompts and start your
+first real task in Orca. The manager starts no paid agent task to check a login.
 
-Vor Delegation `initialize`, `tools/list` und `orca` mit `action=health` prüfen.
-MCP-Transport allein ist kein erfolgreicher Orca-Test: `statusProbe.ok` muss true
-sein. Erst danach `ORCA_BRIDGE_TOOLSETS=status,dispatch` ausdrücklich aktivieren.
-`admin` bleibt ausgeschlossen. Bearer-/OAuth-Konfiguration und Tunnel nach deren
-Dokumentation einrichten. Debug-Token-URLs niemals teilen oder in Logs ausgeben.
+GitHub is optional. When a project needs repos, pushes or PRs, use native
+`gh auth login --hostname github.com --web`, `gh auth setup-git` and
+`gh auth status --hostname github.com`. The server's login is separate from your
+Mac's. Reading an authenticated identity does not establish repository push
+permission. Public Orca metadata/downloads do not require this runtime login.
 
-## Persistente Daten
+Request a Mac pairing offer with `orca pair`, or mobile with `orca pair --mobile`.
+The running runtime need not restart. Use Orca's link/QR code in its native
+client over LAN/VPN. Keep offers private. This adapter does not expose a supported
+native device census, so real dashboard device status remains **unknown** rather
+than claiming that a paired/offline device is connected. The offline prototype
+can simulate those states for interaction review.
 
-| Speicher | Inhalt | Zugriff |
-| --- | --- | --- |
-| `manager-data` → `/data` | SQLite, Administrator-Hash, Session-Schlüssel, übersprungene Schritte | nur Manager, UID 1000 |
-| `runtime-home` → `/home/orca` | Orca-Profil, Pairings, Provider-Konfiguration, GitHub CLI, Bridge-OAuth-Zustand | Runtime und optionale Bridge, UID 1000 |
-| `workspaces` → `/workspaces` | Repositories, Git-Worktrees, Ergebnisse | Runtime und optionale Bridge |
-| `state/tls` | HTTPS-Schlüssel und Zertifikat | Caddy lesend, Schlüssel 0600 |
-| `state/secrets/bridge_token` | optionaler Bridge-Token | Bridge lesend, 0600 |
+## Status observations
 
-Docker-Volumes lassen sich über eine lokale Compose-Override-Datei durch eigene
-Host-Datenträger ersetzen. Gleiche absoluten Workspace-Pfade beim Restore
-verwenden, damit Git-Worktree-Verweise gültig bleiben. Dateieigentümer erhalten.
-Bei anderem Host-Benutzer müssen TLS-/Secret-Dateien bewusst der Container-UID
-1000 zugeordnet werden; nicht weltweit lesbar machen.
+The host timer reads fixed native commands and publishes a sanitized snapshot.
+The dashboard considers it fresh for 90 seconds. A missing/stale worker never
+claims a working connection. During long image builds the last snapshot may
+expire; the operation page still displays the queued/running operation. The next
+observation refreshes status. The worker reads native RPC, a complete local
+terminal census, account counts, native Codex login status, GitHub identity and
+MCP health. Raw account JSON, tokens and pairing offers are not returned to the UI.
 
-## Backup, Update, Rollback
+## Update and rollback
 
-Vor einem konsistenten Backup alle beteiligten Dienste sauber stoppen. Bestehende
-VM-/Datenträger-Backups verwenden und alle drei Volumes sowie TLS/Secrets und
-die private `.env` gemeinsam sichern. Backups enthalten entschlüsselbare
-Credentials: verschlüsseln und Zugriff begrenzen. Keine eigene Backupsoftware.
+1. Open **Versions & updates**. The paginated list comes from official Orca
+   releases with upstream pre-release labels and links. It includes other
+   available versions; no local stable/approved list exists. Releases lacking a
+   checksummed server package for this platform cannot be built by this pilot.
+2. Stop work in Orca, including native chat tasks. The live terminal census is
+   not a complete chat-task census. Select a version and acknowledge stopped
+   work. This is operational coordination, not a release acceptance test.
+3. The worker prepares the private OCI image and stopped replacement CT, checks
+   terminals again, gracefully stops the current CT and copies HOME/workspaces.
+   It records the previous CT and backup before starting the replacement. The
+   manager remains available. No force shutdown or automatic data restore occurs.
+4. Read the resulting status and try Orca yourself. If needed, choose **Switch
+   software only** (keep newer data, migrations remain) or **Restore software and
+   saved data** (discard newer active changes, including profile/account/pairing
+   state). Neither mode promises older software can read newer data.
 
-Für Updates zuerst Commit, Image-IDs und Datenbackup festhalten. Release-Pins,
-Prüfsummen und Manifestvertrag in einem separaten PR aktualisieren; danach
-Images neu bauen und `scripts/smoke.py` ausführen. Für Pilotbetrieb Tags zusätzlich
-an die lokal geprüften Image-Digests binden. Die Basisimages haben hier feste
-Versions-Tags, noch keine unveränderlichen Registry-Digests.
+One operation is active across browser sessions; the worker also checks the
+installation generation. Interrupted operations are recorded and not blindly
+replayed. A new-start failure retains the old CT and backup. If the new runtime
+is unreachable, explicit rollback can still gracefully stop it and restore the
+previous one. If a backup fails before switching, the old runtime is restarted.
 
-Beim Restore gleichen Projekt-/Volumenamen oder explizite Volume-Zuordnungen
-nutzen, UID/GID 1000 erhalten, Zertifikate zurückspielen und Healthchecks sowie
-Client-/Provider-Verbindungen erneut prüfen. Ein Code-Rollback macht eine
-Orca-Datenmigration nicht rückgängig. Bei inkompatiblen Versionen alte Images
-**und** zugehöriges konsistentes Datenbackup wiederherstellen. Keine blinden
-Lockdatei-Löschungen und niemals `down --volumes` für persistente Nutzdaten.
+Only the immediately previous version is offered as the saved rollback point.
+Older retained containers/backups remain on disk for deliberate administrator
+inspection/cleanup; they are not an automatic retention policy. All upstream
+versions with usable server packages remain selectable for a new change.
 
-Ein Container-Restart erhält Dateien, aber keine laufenden Agentenprozesse.
-Orcas eigene Session-Restoration ist nach realen Updates noch zu testen.
+## Community bridge and OpenAI tunnel
+
+The runtime includes the pinned BuildContext bridge. Enable it by generating a
+private random `bridge_token` (at least 32 characters) in the deployment's
+`private/runtime-secrets` directory. Do not print it, paste it into Git or pass
+it as a command-line argument. The secret directory and files map to runtime
+UID/GID 1000 (host 101000 in the default unprivileged mapping); files use 0600.
+Restart the runtime after changing integration files and stopping current work.
+
+Default bridge toolsets are `status`. To allow the existing bridge's dispatch
+features, the administrator explicitly creates `bridge-toolsets` containing
+`status,dispatch` in that same private directory. CLI hardening remains enabled.
+The bridge binds only `127.0.0.1:8787`. Do not publish that port.
+
+Use the already selected **OpenAI Secure MCP Tunnel**:
+
+- Reuse the existing tunnel binary and its native profile creation/connect
+  workflow. Use a **separate profile/runtime**; never replace the profile that
+  carries the working SSH connector. Inspect the installed client's own help
+  rather than inventing profile fields. Version 0.0.16 was found on the test host.
+- Copy the existing verified binary into `private/runtime-tunnel/tunnel-client`
+  with read/execute permission; that directory is mounted read-only as
+  `/opt/tunnel`. Keep the native private profile in `runtime-secrets`, with its
+  MCP target pointing to the local bridge's token-protected endpoint. Keep
+  tokens in the profile/private files, not argv or logs.
+- `runtime-secrets/tunnel-command.json` contains only an argv array such as
+  `["/opt/tunnel/tunnel-client", "run", "--profile-file",
+  "/run/secrets/openai-tunnel-profile.json"]`. It is an administrator-managed
+  file; the browser cannot submit a command. Use the client's native file/env
+  references for control-plane secrets. Do not enable unsafe HTTP logging.
+- Keep its local health listener at `127.0.0.1:8080` for the prepared `/readyz`
+  probe. A successful local response is **partial** evidence. Only an
+  authenticated external MCP call confirms the complete path. That check is
+  still pending; the manager does not label it connected from a PID alone.
+
+The Docker trial can enable just the bridge with `compose/mcp.yaml` and a private
+`OSM_BRIDGE_TOKEN_FILE`. No external coordinator is connected by the smoke test.
+
+## Recovery and data responsibility
+
+The worker configuration, job results and installation plan live in its explicit
+administrator-owned directories. If a host worker stops mid-change, inspect the
+job, `pending` checkpoint, both scoped CTs and the saved data before proceeding.
+Never start old and new CTs simultaneously: they share HOME/workspaces and a MAC.
+
+A `prepared` checkpoint means the previous runtime/data are still selected; the
+replacement must remain stopped. A `starting` checkpoint already names the new
+runtime and holds a previous CT/backup, so use explicit rollback. For a data-swap
+interruption the next worker tick restores a complete staged/retired directory
+group and marks `rollback-interrupted`; inspect it, then explicitly choose the
+rollback again. Do not delete or edit checkpoints blindly.
+
+Images, backups and retired copies stay on the dedicated data filesystem.
+Ordinary PVE rootfs backup does **not** automatically include these bind mounts.
+Use an independent backup of the data filesystem and private deployment config;
+verify restore with disposable data before relying on it. External project paths
+outside `/workspaces` or runtime HOME are outside this backup contract. Active
+terminals do not survive runtime container replacement. No retained resource is
+automatically deleted by the pilot.

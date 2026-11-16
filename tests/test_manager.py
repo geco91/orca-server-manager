@@ -63,7 +63,7 @@ def test_setup_requires_token_strong_password_and_csrf(app):
             "/setup",
             {"csrf_token": csrf(client, "/setup"), "token": "bad", "password": PASSWORD},
         )
-        assert "Einrichtung fehlgeschlagen" in response.text
+        assert "Setup failed" in response.text
         assert get(client, "/").status_code == 302
         assert bootstrap(app, client).status_code == 302
         from pathlib import Path
@@ -76,28 +76,25 @@ def test_setup_requires_token_strong_password_and_csrf(app):
         assert hashed.startswith("scrypt:")
 
 
-def test_skip_is_csrf_protected_and_status_never_claims_integrations_work(app):
+def test_native_guides_are_optional_and_unobserved_status_stays_unknown(app):
     with app.test_client() as client:
         bootstrap(app, client)
         page = get(client, "/")
-        assert "Nicht erreichbar" in page.text
-        assert "Nicht verifiziert" in page.text
-        assert post(client, "/steps/github/skip", {"skip": "1"}).status_code == 400
-        assert (
-            post(
-                client, "/steps/github/skip", {"skip": "1", "csrf_token": csrf(client, "/")}
-            ).status_code
-            == 302
-        )
-        assert "Später einrichten" in get(client, "/").text
-        assert (
-            post(client, "/steps/server/skip", {"csrf_token": csrf(client, "/")}).status_code == 404
-        )
+        assert '<html lang="en">' in page.text
+        assert "Not verified" in page.text
+        assert "GitHub is optional" in page.text
+        assert "0%" not in page.text
+        assert post(client, "/actions/refresh", {}).status_code == 400
         status = get(client, "/api/status").json
-        assert status["runtime"]["state"] == "error"
-        assert set(status["integrations"].values()) == {"unverified"}
+        assert status["runtime"]["state"] == "unknown"
+        assert not status["controller"]["available"]
+        assert {row["state"] for row in status["integrations"].values()} == {"unknown"}
         for key in status["integrations"]:
             assert get(client, f"/connections/{key}").status_code == 200
+        assert "OpenAI Secure MCP Tunnel" in get(client, "/connections/tunnel").text
+        assert "orca pair --mobile" in get(client, "/connections/mobile").text
+        result = post(client, "/actions/refresh", {"csrf_token": csrf(client, "/")})
+        assert result.status_code == 503
 
 
 def test_login_logout_cookie_flags_and_persistence(app):

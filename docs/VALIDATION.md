@@ -1,28 +1,34 @@
-# Validierung am 24.10.2026
+# Pilot validation record
 
-Ausgeführt in der Codex-Cloud auf Linux x86-64, Docker Engine 28.4.0,
-Compose 2.40.3, Python 3.12.14 und uv 0.12.23.
+16 November 2026, Linux x86-64 in the managed Cloud workspace.
 
-| Prüfung | Ergebnis |
-| --- | --- |
-| Python-Installation aus `uv.lock` | erfolgreich |
-| Ruff-Prüfung und Formatprüfung | erfolgreich |
-| Manager-Tests | 6 Tests bestanden: HTTPS-/Login-Grenzen, Bootstrap, CSRF, übersprungene Schritte, Persistenz, Cookies, Fehlversuchssperre und Passwortreset |
-| OCI-Build Runtime, Manager, HTTPS, MCP | erfolgreich, lokal; keine Images veröffentlicht |
-| Runtime-Integrität | offizieller Paket-SHA-512, Manifest-SHA-256, Node-Archiv und ausführbare Node-Datei verifiziert; Inhaltshash gegen Upstream-Funktion abgeglichen |
-| Echte Orca-RPC | `runtime.state=ready`, `runtime.reachable=true`, Version 1.4.239; Worktree-Leseaufruf erfolgreich |
-| Runtime-Terminals | Upstream-PTY-Selbsttest erfolgreich; kein Coding-Agent aufgerufen |
-| Compose-Smoke-Test | HTTPS mit vertrautem Zertifikat, HTTP-308-Redirect, echter Administrator-Bootstrap, sichere Session, verweigerte Änderung ohne CSRF, Web-Endpunkt der Runtime |
-| Container-Neuerstellung | Runtime und Manager sauber ersetzt; Login-Session, übersprungener Schritt und Workspace-Testdatei erhalten |
-| MCP im privaten Runtime-Netz | initialize, tools/list und orca/action=health erfolgreich, `statusProbe.ok=true`; keine Delegation gestartet |
-| Cloud-Git-Zugang | Git-Lesezugriff erfolgreich; GitHub API durch Netzwerkpolicy mit Forbidden blockiert |
+- `uv sync --frozen`: passed with the committed dependency lock.
+- Ruff lint/format checks for manager, scripts, tests, Proxmox tools and manager
+  entrypoint: passed.
+- `uv run pytest -q`: **35 passed**. Includes authentication/CSRF/session reset,
+  official source/version validation, stale status and bounded queue handling,
+  generation fences, active/unknown terminal blocking, two rollback modes,
+  failed backup/start, ownership markers and interrupted data swap recovery.
+- Runtime, provider extension and manager OCI-source images: built successfully.
+  Real Orca reports **1.4.261** with bundled Node **24.22.1**. Provider CLI
+  binaries are installed; this does not claim a provider login or agent run.
+- `python3 scripts/smoke.py`: passed using only its own disposable Compose
+  resources. Verified HTTPS/certificate and HTTP redirect, English bootstrap,
+  session persistence/CSRF, real native RPC, bridge MCP initialize/tools/health
+  and data after container recreation. No paid agent dispatched.
+- Chromium/Playwright: **18 offline-prototype checks** and **10 actual-manager
+  browser checks**, including desktop/mobile layout and English text. Actual
+  browser update/rollback requests used the real Flask queue with a clearly
+  separate controller fixture, not a Proxmox executor.
+- Native installer default mode: generated a read-only plan locally. Worker PVE
+  command tests use a simulator; their backup/restore file operations are real.
 
-Der Smoke-Test verwendet eigene, danach entfernte Volumes. Der reguläre Stack
-bleibt ohne eingerichteten Administrator verfügbar; sein Einmaltoken wird nicht
-in Testausgaben geschrieben. Zertifikate, Token und `.env` sind von Git ausgeschlossen.
+Not exercised: native PVE OCI import/start, real PVE update/rollback, provider
+credentials, Mac/mobile pairing, repository writes or authenticated external
+OpenAI tunnel access. The host was inspected (PVE 9.2.21), but resource creation
+was rejected by automatic approval review and remains pending explicit approval.
 
-Nicht ausgeführt: GitHub-Actions-Läufe, GUI-/Browserautomation, echte Mac-/Mobile-
-Pairings, Provider-Authentifizierung und Coding-Agentlauf, externer Secure MCP
-Tunnel, MCP-Delegation, Proxmox-VM, Podman, natives OCI/LXC, arm64 und VM-Backup-Restore.
-Die native Runtime meldet ohne installiertes Chromium `browser_unavailable`;
-das betrifft Orcas Browserautomation, nicht den getesteten Runtime-Web-Endpunkt.
+These checks validate the manager implementation. They are not a local Orca
+release approval, stability classification or gate imposed on user-selected
+versions. Exported private OCI manifests record their exact source commit and
+archive hashes independently of this report.

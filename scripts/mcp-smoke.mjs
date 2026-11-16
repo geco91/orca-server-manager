@@ -21,8 +21,9 @@ async function rpc(method, params, id) {
   if (body.error) throw new Error('MCP JSON-RPC error');
   return body.result;
 }
+async function main() {
 const init = await rpc('initialize', {
-  protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'osm-smoke', version: '0.1.0' },
+  protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'osm-smoke', version: '0.2.0' },
 }, 1);
 if (!init.protocolVersion) throw new Error('Missing protocol version');
 await rpc('notifications/initialized', {});
@@ -33,3 +34,9 @@ if (health.isError) throw new Error('Bridge health call failed');
 const payload = health.structuredContent ?? JSON.parse(health.content.find(item => item.type === 'text').text);
 if (payload.statusProbe?.ok !== true) throw new Error('Bridge cannot reach the real Orca runtime');
 console.log('PASS: MCP initialize, tools/list and real Orca health; no agent dispatched');
+
+}
+main().catch(() => {
+  console.error('MCP health check failed. Inspect the native runtime and bridge configuration privately.');
+  process.exitCode = 1;
+});

@@ -16,6 +16,8 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check manager tests scripts
       - run: uv run ruff format --check manager tests scripts
+      - run: uv run ruff check deploy/proxmox container/manager-service.py
+      - run: uv run ruff format --check deploy/proxmox container/manager-service.py
       - run: uv run pytest -q
       - run: docker compose -f compose/compose.yaml config --quiet
   containers:
@@ -25,9 +27,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: docker build -f container/runtime.Dockerfile -t orca-server-manager/runtime:0.1.0 .
-      - run: docker build -f container/manager.Dockerfile -t orca-server-manager/manager:0.1.0 .
-      - run: docker build -f container/https.Dockerfile -t orca-server-manager/https:0.1.0 .
-      - run: docker build -f container/mcp.Dockerfile -t orca-server-manager/mcp:0.1.0 .
-      - run: bash scripts/create-tls.sh
+      - run: bash scripts/build.sh
       - run: python scripts/smoke.py

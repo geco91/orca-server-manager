@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">NO OPERATION STARTED</span><h1>Deployment worker unavailable.</h1><p>{{ error }}</p></div></div>
+<a class="button" href="{{ url_for('updates') }}">Back to versions</a>
+{% endblock %}

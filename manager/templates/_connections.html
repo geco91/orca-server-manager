@@ -1,0 +1,11 @@
+<div class="connection-grid">
+{% for key, title, detail in steps if key != 'server' %}
+{% set result = status.integrations[key] %}
+<article class="panel connection-card">
+<div class="card-top"><span class="pill {{ result.state }}">{{ result.label }}</span><span class="pill optional">Optional</span></div>
+<h3>{{ title }}</h3><p>{{ detail }}</p>
+<p>{{ result.detail }}</p>
+<div class="card-bottom"><a href="{{ url_for('connection', name=key) }}">Guide &amp; status →</a></div>
+</article>
+{% endfor %}
+</div>

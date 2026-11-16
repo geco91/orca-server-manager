@@ -1,46 +1,45 @@
 {% extends 'base.html' %}
-{% block title %}{{ title }} · Orca{% endblock %}
-{% block content %}<a class="back" href="{{ url_for('overview') }}">← Übersicht</a><section class="panel guide"><span class="eyebrow">SETUP & VERBINDUNGEN</span><h1>{{ title }}</h1>
+{% block title %}{{ title }} · Orca Server Manager{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('connections') }}">← All connections</a>
+<div class="page-heading"><div><span class="eyebrow">GUIDE &amp; STATUS</span><h1>{{ title }}</h1><p>Use the native setup. The manager observes the resulting state.</p></div></div>
+<div class="detail-grid">
+<section class="panel">
+<span class="eyebrow">NATIVE SETUP</span><h2>Guide</h2>
+{% if status.deployment.runtime_id %}<p class="guide-note">From the Proxmox administrator console, enter this runtime as the Orca user:</p><pre><code>pct exec {{ status.deployment.runtime_id }} -- runuser -u orca -- /bin/bash</code></pre>{% endif %}
 {% if name == 'server' %}
-<p>Der Manager prüft den privaten Orca-Web-Endpunkt. Ob ein Client authentifiziert ist oder ein Agent arbeitet, lässt sich daraus nicht ableiten.</p>
-<h2>Auf dem Container-Host prüfen</h2><pre>docker compose -f compose/compose.yaml ps
-docker compose -f compose/compose.yaml exec runtime orca status --json</pre><p>Der CLI-Status prüft die tatsächliche Runtime. Die Runtime startet ohne Pairing-Ausgabe, damit Zugangsdaten nicht in Logs landen.</p>
+<p>The worker reads the native Orca RPC status. A listening port or a web page alone does not prove that Orca is ready.</p><p>Check the runtime logs through the deployment's administrator console if it is not reachable.</p><pre><code>orca status --json</code></pre>
 {% elif name == 'providers' %}
-<p>Provider gehören in die Runtime. Melde dich über die nativen Werkzeuge in einem vertrauenswürdigen Terminal an. Der Manager speichert keine API-Schlüssel.</p>
-<pre>docker compose -f compose/compose.yaml exec runtime bash
-# Im Runtime-Container:
-codex --version
-codex login --device-auth
-codex login status
-opencode --version
-opencode auth login
-opencode auth list</pre><p>Codex und OpenCode sind optionale Werkzeuge und werden nicht automatisch installiert. Die Betriebsanleitung beschreibt die Installation in einem abgeleiteten Runtime-Image. Ein Login allein belegt noch keine erfolgreiche Agent-Ausführung.</p>
+<ol class="guide-list"><li><strong>Provide the agent CLI on the server.</strong> Use the optional provider image extension if a CLI is missing.</li><li><strong>Run the native sign-in inside the Orca runtime.</strong> A login on your Mac does not sign in the server.</li><li><strong>Start your first agent task in Orca yourself.</strong> The status check does not start a paid agent call.</li></ol>
+<details><summary>Commands inside the runtime</summary><pre><code>orca account add --agent codex
+orca account add --agent opencode
+orca account list --json</code></pre></details>
+<p class="guide-note">Login screens belong to Orca and the provider. The manager does not ask for API keys or passwords.</p>
+<a href="https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/account.ts" target="_blank" rel="noopener noreferrer">Orca account commands ↗</a>
 {% elif name == 'github' %}
-<p>Verbinde den Account <strong>geco91</strong> über die native GitHub CLI. Verwende möglichst eng begrenzte Repository-Rechte.</p>
-<pre>docker compose -f compose/compose.yaml exec runtime bash
-gh auth login --hostname github.com --git-protocol https --web
+<ol class="guide-list"><li><strong>Set up only when needed.</strong> GitHub enables repository access, pushes and pull requests.</li><li><strong>Sign in on the server.</strong> Open a terminal inside the Orca runtime and use the native GitHub CLI.</li><li><strong>Read identity and permissions.</strong> The login on your Mac is separate.</li></ol>
+<details><summary>Commands inside the runtime</summary><pre><code>gh auth login --hostname github.com --web
 gh auth setup-git
-gh auth status
-git ls-remote https://github.com/geco91/orca-server-manager.git HEAD
-git config --global user.name "DEIN NAME"
-git config --global user.email "DEINE E-MAIL"</pre><p>Die Identität selbst festlegen. Ein erfolgreicher Lesezugriff belegt keine Schreibrechte. CLI-Ausgaben nicht ungeprüft in Tickets kopieren.</p>
+gh auth status --hostname github.com</code></pre></details>
+<div class="notice neutral"><strong>Optional</strong><p>Orca, the MCP tunnel and public Orca releases do not require this GitHub login.</p></div>
 {% elif name in ['desktop', 'mobile'] %}
-<p>Pairing verwendet Orcas bestehende Mechanismen. Der Manager erzeugt keine eigenen Zugangstoken und behauptet keine bestehende Geräteverbindung.</p>
-<p>Für einen neuen Link den Runtime-Dienst kurz stoppen und Orca interaktiv mit demselben persistenten Profil starten:</p>
-<pre>docker compose -f compose/compose.yaml stop runtime
-docker compose -f compose/compose.yaml run --rm --service-ports runtime \
-  orcad --bind 0.0.0.0 --port 6768 --pairing-address DEINE_LAN_ODER_VPN_ADRESSE{{ ' --mobile-pairing' if name == 'mobile' else '' }}
-# Nach dem Pairing mit Ctrl-C beenden, dann:
-docker compose -f compose/compose.yaml up -d runtime</pre>
-{% if name == 'mobile' %}<p>Orca Mobile öffnen, „Pair“ wählen und den offiziellen QR-Code scannen. Das Mobilgerät muss die Serveradresse über LAN oder VPN erreichen.</p>{% else %}<p>Den offiziellen Link im Mac-Client unter Settings → Remote Orca Servers → Add Server einfügen. Pairing-Links vertraulich behandeln.</p>{% endif %}
-<p>Der Runtime-Port ist standardmäßig nur am Host-Loopback verfügbar. Für LAN/VPN zuerst die Bind-Adresse im Deployment ausdrücklich konfigurieren.</p>
+<ol class="guide-list"><li><strong>Ask the running Orca server for its pairing offer.</strong> This does not require restarting the server.</li><li><strong>{{ 'Pair in Orca Mobile.' if name == 'mobile' else 'Add the server in the Mac client.' }}</strong> {{ 'Scan the QR code created by Orca.' if name == 'mobile' else 'Open Settings → Remote Orca Servers → Add Server and use the link created by Orca.' }}</li><li><strong>Use LAN or VPN connectivity.</strong> Keep pairing links private.</li></ol>
+<details><summary>Native pairing command</summary><pre><code>{{ 'orca pair --mobile' if name == 'mobile' else 'orca pair' }}</code></pre></details>
+<div class="notice neutral"><strong>Paired and online are different states.</strong><p>A paired device can be offline. If the native version does not expose an observable client list, the dashboard reports the status as unknown.</p></div>
 {% elif name == 'mcp' %}
-<p>Geprüfte Community-Bridge: <a href="https://github.com/BuildContext/orca-mcp" rel="noreferrer">BuildContext/orca-mcp</a>. Sie bietet das Tool <code>orca</code> mit health, dispatch, await und release. Die Bridge benötigt dieselbe CLI und denselben Runtime-Profilzugriff.</p>
-<p>Die optionale Bridge-Konfiguration startet standardmäßig nur lesend, ohne veröffentlichten Port. Erst nach einem erfolgreichen health-Aufruf und Prüfung des Tunnels kann Delegation mit dem Toolset <code>status,dispatch</code> freigeschaltet werden.</p>
-<p>Siehe <code>docs/OPERATIONS.md</code> und <code>compose/mcp.yaml</code>. Kein Docker-Socket und keine Root-Fernsteuerung.</p>
+<p>The separate <a href="https://github.com/BuildContext/orca-mcp" target="_blank" rel="noopener noreferrer">BuildContext community bridge</a> exposes Orca's native CLI to external MCP coordinators.</p><p>This is the opposite direction to MCP servers used by Orca's own agents.</p><p>The runtime image includes the bridge. It starts only when its private token has been configured, using read-only status tools by default. The deployment guide describes enabling delegation when needed.</p><p>The status probe sends MCP initialize, tools/list and a read-only Orca health call. It does not launch an agent.</p>
 {% elif name == 'tunnel' %}
-<p>Verwende deinen bestehenden Secure MCP Tunnel. Dieser MVP installiert keinen neuen Tunnel und kennt dessen Produkt, Authentifizierung und Zielkonfiguration noch nicht.</p>
-<p>Ziel ist die intern auf Loopback gebundene MCP-Bridge. Ein Tunnel muss im Runtime-Netzwerk erreichbar sein, TLS und Authentifizierung erhalten und darf den Bridge-Port nicht ungeschützt veröffentlichen.</p>
-<p>Abnahme: MCP initialize → tools/list → Tool orca mit action health. Ein offener Port genügt nicht. Externe Delegation bleibt bis zur Prüfung deaktiviert.</p>
+<div class="flow" aria-label="Connection path"><b>ChatGPT / Codex</b><span>→</span><b>OpenAI Secure MCP Tunnel</b><span>→</span><b>Community bridge</b><span>→</span><b>Orca</b></div>
+<p>Use the selected OpenAI Secure MCP Tunnel and its existing configuration and authentication. The manager does not implement a replacement tunnel.</p><p>The local bridge is checked independently. End-to-end access is only confirmed by a real authenticated call through the tunnel; a running process alone is not sufficient.</p>
 {% endif %}
-<aside>Dieser Schritt ist eine Anleitung. Eine ausgeführte Anmeldung oder ein Client-Pairing wird erst durch einen echten Verbindungstest bestätigt.</aside></section>{% endblock %}
+</section>
+<section class="panel">
+<div class="panel-top"><span class="eyebrow">TECHNICAL OBSERVATION</span><span class="pill {{ result.state }}">{{ result.label }}</span></div>
+<p>{{ result.detail }}</p>
+{% if result.checks %}<div class="checks">{% for row in result.checks %}<div class="check-row"><span>{{ row.name }}</span><span>{{ row.value }}</span></div>{% endfor %}</div>{% endif %}
+<form method="post" action="{{ url_for('refresh') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button{% if not status.controller.available or active_operation %} disabled{% endif %}>Refresh technical status</button></form>
+<p class="check-time">{{ 'Observed: ' ~ status.observed_at if status.observed_at else 'No current observation.' }}</p>
+{% if not status.controller.available %}<div class="notice neutral"><strong>Deployment worker not connected</strong><p>{{ status.controller.detail }}</p></div>{% endif %}
+</section>
+</div>
+{% endblock %}

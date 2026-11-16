@@ -1,95 +1,101 @@
 # Orca Server Manager
 
-Portable Headless Orca Server with Guided Setup, MCP Integration and OCI Deployment.
+An English-first operations dashboard for a headless Orca server. Work with agents,
+projects, sessions and worktrees in **Orca**. The manager provides native setup
+guides, technical observations and an explicit version-change/rollback process.
 
-Dieses Projekt stellt die Infrastruktur für einen headless Orca-Server bereit.
-Orca selbst verwaltet Coding-Agenten, Projekte, Sessions und Worktrees.
-Der Manager bietet einen geschützten Einstieg für Einrichtung und Diagnose.
+**Pilot implementation, 16 November 2026:** native Orca RPC, HTTPS administrator
+setup, official release selection, a bounded deployment queue, private OCI builds
+and a scoped Proxmox worker are implemented. The native Proxmox installation is
+prepared, **not deployed or verified on the test host yet**. Real provider logins,
+Mac/mobile pairing and the external tunnel require their native setup.
 
-**Stand: erstes technisches MVP.** Orca-Runtime, HTTPS-Manager, Einrichtung des
-Administrators, Setup-Anleitungen und persistente Daten sind implementiert.
-Provider-Logins und Geräte-Pairing erfolgen über die nativen Werkzeuge.
-Die UI meldet diese Verbindungen ausdrücklich als nicht verifiziert.
-Ein Secure MCP Tunnel und eine Proxmox-Installation sind noch keine abgenommenen Funktionen.
+## Native Proxmox OCI pilot
 
-## Schnellstart auf einem Docker-Host
+The target is two **unprivileged native Proxmox OCI containers**: manager and Orca
+runtime. A separate Debian builder produces private OCI archives; Docker runs
+only in that build guest. The Proxmox host runs a small, scoped queue worker.
+This does not substitute a Docker VM for the intended native OCI deployment.
 
-Voraussetzungen: Linux x86-64, Docker mit Compose v2, Bash und OpenSSL.
-Die erste Referenzplattform ist eine Debian-13-VM, kein privilegierter LXC.
+Start with the [installation plan and commands](deploy/proxmox/README.md). The
+installer prints a plan by default and requires `--apply` to change a host.
+It requires explicit unused IDs, an assigned builder, existing storage/network
+and an empty dedicated data filesystem. It never formats a disk or replaces an
+existing guest. No public image registry or user GitHub pairing is needed.
+
+The first package is upstream [Orca 1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261),
+the current official release when checked. It is not classified as stable or
+approved by this project. Later versions are selected directly from Orca's
+release metadata; a published server package and checksum are technical build
+requirements. The manager maintains no release approval list.
+
+```bash
+# On the dedicated builder, from a clean checkout of the intended commit:
+python3 scripts/build-oci.py --version 1.4.261 --manager --output /srv/orca-oci
+# Creates private OCI archives and a source/checksum manifest. Does not publish.
+```
+
+## Local container trial
+
+Linux x86-64, Docker, Compose v2, Bash and Python 3.12+ are required. This is a
+local runtime/UI trial. Without a Proxmox worker the dashboard reports its
+runtime observations as unknown and disables version changes.
 
 ```bash
 cp config/.env.example .env
-# .env an Hostnamen, LAN/VPN-Adresse und gewünschte Ports anpassen.
-# Zusätzliche DNS-Namen und IPv4-Adressen als Zertifikats-SAN:
-bash scripts/create-tls.sh orca.example.internal 192.168.1.50
 bash scripts/build.sh
 docker compose --env-file .env -f compose/compose.yaml up -d --wait
-docker compose --env-file .env -f compose/compose.yaml exec manager cat /data/bootstrap.token
+docker compose --env-file .env -f compose/compose.yaml exec --user 1000:1000 \
+  manager cat /data/manager/bootstrap.token
 ```
 
-Die HTTPS-Adresse aus `OSM_ORIGIN` im Browser öffnen. Das selbstsignierte
-Zertifikat `state/tls/server.crt` nach Prüfung auf den Clients vertrauen oder durch
-ein eigenes Zertifikat ersetzen. Token vertraulich in die Ersteinrichtung
-eintragen und ein eigenes Administrator-Passwort vergeben. Der Token wird
-anschließend gelöscht. Ein Passwort wird ausschließlich als scrypt-Hash gespeichert.
+Open `https://localhost`. Verify/trust the manager's self-signed certificate or
+install your own certificate in its persistent `/data/tls` directory. Set your
+own administrator password with 14–256 characters. The one-time setup token is
+removed; passwords are stored as scrypt hashes. Ports bind to host loopback by
+default. For LAN/VPN access, configure the bind address, origin, trusted hostnames
+and certificate SAN deliberately. Manager and runtime data persist separately.
 
-Standardmäßig lauschen veröffentlichte Ports nur auf Host-Loopback.
-Für LAN/VPN die Bind-Adressen, `OSM_ORIGIN` und `OSM_TRUSTED_HOSTS` in `.env`
-bewusst anpassen. Der Manager verwendet außen Port 80 für den Redirect und 443
-für HTTPS, intern unprivilegierte Ports 8080/8443. Orca verwendet separat 6768.
-Die Management-UI startet auch dann, wenn optionale Integrationen fehlen.
+The [offline prototype](mock/README.md) can be tried without a server or account:
 
-## Entwicklung in Codex Cloud
+```bash
+python3 scripts/export-mock.py
+# Open dist/orca-manager-mock.html. All its actions are simulated.
+```
 
-Python 3.12 und uv 0.12.23 werden verwendet; alle Python-Pakete sind in `uv.lock`
-festgelegt. Ein vorhandenes isoliertes Cloud-Checkout weiterverwenden.
+## Development and verification
 
 ```bash
 uv sync --frozen
-uv run ruff check manager tests scripts
-uv run ruff format --check manager tests scripts
+uv run ruff check manager tests scripts deploy/proxmox container/manager-service.py
+uv run ruff format --check manager tests scripts deploy/proxmox container/manager-service.py
 uv run pytest -q
-bash scripts/create-tls.sh
-# Session-CA nur als BuildKit-Secret, niemals ins Image kopieren:
-OSM_BUILD_CA_FILE=/etc/ssl/certs/ca-certificates.crt bash scripts/build.sh
-OSM_HTTP_PORT=8080 OSM_HTTPS_PORT=8443 OSM_ORIGIN=https://localhost:8443 \
-  docker compose -f compose/compose.yaml -f compose/cloud.yaml up -d --wait
+bash scripts/build.sh
 python3 scripts/smoke.py
 ```
 
-`compose/cloud.yaml` ergänzt ausschließlich das öffentliche CA-Bundle für die
-ausgehenden HTTPS-Verbindungen der Runtime. Proxy- und Registry-Konfiguration der
-Cloud-Umgebung erhalten. Tests kommunizieren intern; Onboarding bietet keine
-Web-Vorschau. Der Cloud-Start wird zusätzlich in den Umgebungseinstellungen gespeichert.
+In managed Cloud, preserve the provided proxy and trust configuration. Pass the
+session CA only as a BuildKit secret:
+`OSM_BUILD_CA_FILE=/etc/ssl/certs/ca-certificates.crt bash scripts/build.sh`.
+`compose/cloud.yaml` optionally mounts the outgoing CA bundle read-only for both
+services. No CA private key or credential belongs in an image.
 
-Für lokale UI-Entwicklung ohne Container:
+The disposable smoke test checks verified HTTPS, English setup, secure sessions,
+CSRF, real native Orca RPC, installed provider CLIs, MCP health and persistence
+after container recreation. It dispatches no agent and claims no Proxmox or
+external-tunnel validation. Worker tests simulate PVE commands and exercise real
+filesystem backup and restore separately.
 
-```bash
-bash scripts/create-tls.sh
-uv run flask --app manager.app run --host 127.0.0.1 --port 8443 \
-  --cert state/tls/server.crt --key state/tls/server.key
-```
+## Documentation
 
-Der Flask-Entwicklungsserver ist nur für lokale Entwicklung gedacht. Die Runtime
-wird separat über Compose gestartet; `ORCA_INTERNAL_URL` muss im lokalen
-Entwicklungsprozess auf deren tatsächlich erreichbaren Endpunkt zeigen.
+- [Architecture, decisions and upstream evidence](docs/ARCHITECTURE.md)
+- [Operation, native setup, updates and recovery](docs/OPERATIONS.md)
+- [Pilot preparation and remaining validation](docs/ROADMAP.md)
+- [Native Proxmox installation](deploy/proxmox/README.md)
+- [Security boundary](SECURITY.md)
+- [Original user brief, unchanged](docs/PROJECT_BRIEF.md)
 
-## Dokumentation
-
-Die [interaktive Mock-WebUI](mock/README.md) lässt sich ohne Server und Zugangsdaten
-durchspielen: `python3 scripts/export-mock.py` erzeugt eine einzelne HTML-Datei zum
-lokalen Öffnen im Browser. Alle Aktionen und Verbindungen darin sind simuliert.
-
-- [Originalauftrag, unverändert](docs/PROJECT_BRIEF.md)
-- [Architektur und recherchierte Entscheidungen](docs/ARCHITECTURE.md)
-- [Betrieb, Provider, Pairing, MCP, Backup und Recovery](docs/OPERATIONS.md)
-- [Phasen und offene Abnahmen](docs/ROADMAP.md)
-- [Proxmox-VM als Zielplattform](deploy/proxmox/README.md)
-- [Sicherheitsmodell](SECURITY.md)
-
-Feature-Branches und Pull Requests verwenden, kein automatischer Merge nach
-`main`. Die bereits vorhandene MIT-Lizenz bleibt erhalten. Eine öffentliche
-Veröffentlichung des Repositories oder von Images braucht eine gesonderte Freigabe.
-
-Orca und die Community-Bridge sind unabhängige Upstream-Projekte. Dieses Projekt
-ist kein offizielles Produkt von Stably oder BuildContext.
+Use feature branches and pull requests; no automatic merge. Keep the existing MIT
+license. Public releases, image publication and repository visibility changes
+require a separate instruction. Orca and BuildContext's bridge are independent
+upstream projects; this manager is not their official product.

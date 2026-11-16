@@ -1,6 +1,6 @@
 [project]
 name = "orca-server-manager"
-version = "0.1.0"
+version = "0.2.0"
 description = "Portable Headless Orca Server with Guided Setup, MCP Integration and OCI Deployment"
 requires-python = ">=3.12"
 dependencies = [

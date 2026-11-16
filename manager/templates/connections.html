@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">NATIVE SETUP &amp; TECHNICAL STATUS</span><h1>Set up with Orca's own tools.</h1><p>Choose an optional connection, follow its native guide, then read the technical status. A status check does not sign in or pair a device.</p></div></div>
+{% if status.observed_at %}<p class="check-time">Last observation: {{ status.observed_at }}</p>{% endif %}
+{% include '_connections.html' %}
+{% endblock %}

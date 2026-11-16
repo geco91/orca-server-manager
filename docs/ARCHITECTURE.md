@@ -1,94 +1,111 @@
-# Architektur und technische Validierung
+# Architecture and evidence
 
-Recherche am 24.10.2026. Originalmandat: [PROJECT_BRIEF.md](PROJECT_BRIEF.md).
-Das bestehende Repository wurde weiterverwendet, nicht neu angelegt oder öffentlich gemacht.
-
-## Komponenten
+Updated 16 November 2026. The original mandate remains in [PROJECT_BRIEF.md](PROJECT_BRIEF.md).
+The UI and operational text default to English.
 
 ```mermaid
 flowchart LR
-  Browser -->|HTTPS 443| Caddy
-  Caddy -->|privates Netz| Manager[Flask Manager]
-  Manager -->|Web-Endpunkt prüfen| Orcad[Native Orca Runtime]
-  Clients[Mac / Mobile / Orca Web] -->|Pairing über LAN oder VPN| Orcad
-  Tunnel[Vorhandener Secure MCP Tunnel] -. noch anzubinden .-> Bridge[Optionale MCP Bridge]
-  Bridge -->|offizielle CLI, gemeinsames Profil| Orcad
-  Orcad --> Workspaces[Persistente Repositories und Workspaces]
+  Browser -->|HTTPS| Manager[Manager OCI: Caddy + Flask]
+  Manager -->|bounded file requests| Worker[Scoped Proxmox host worker]
+  Worker -->|native PVE commands| Runtime[Unprivileged Orca OCI]
+  Worker -->|fixed SSH alias| Builder[Dedicated Debian build VM]
+  Builder -->|private OCI archive + hashes| Worker
+  Client[Orca Mac / Mobile] -->|native pairing over LAN or VPN| Runtime
+  Coordinator[ChatGPT / Codex] --> Tunnel[Existing OpenAI Secure MCP Tunnel]
+  Tunnel --> Bridge[Community bridge in runtime]
+  Bridge -->|native CLI| Runtime
 ```
 
-| Bereich | Entscheidung und Begründung |
-| --- | --- |
-| Manager | Python 3.12, Flask, Jinja, Flask-Login, Flask-WTF, Gunicorn. Serverseitiges HTML ohne SPA, Frontend-Build oder externe Fonts. |
-| Auth | Ein lokaler Administrator, einmaliger Bootstrap-Token, Werkzeug-scrypt, signierte sichere Session-Cookies, 8 Stunden, CSRF, HTTPS-Referrer-Prüfung, Sperre nach 5 Fehlversuchen für 5 Minuten. Kein allgemeines Identitätsmanagement. |
-| TLS | Caddy ohne Dateicapability, unprivilegierte Containerports. Persistentes, selbstsigniertes SAN-Zertifikat oder eigene Zertifikate. Kein automatischer ACME-Zwang. |
-| Runtime | Orca 1.4.239, native Servervorlage aus dem offiziellen Debian-Paket, Node 24.22.1. Keine Electron-Runtime oder Desktopumgebung im fertigen Image. |
-| Persistenz | Getrennte Volumes für Manager, Runtime-HOME und Workspaces. Manager erhält keinen Zugriff auf Provider-Credentials. |
-| MCP | Bestehende Bridge als optionaler Container mit gleicher Runtime-CLI, gleichem HOME/Workspace und Runtime-Netzwerknamespace. Standard `status`, kein veröffentlichter Bridge-Port. |
-| Restart | Compose `unless-stopped`, init-Reaper, 45 Sekunden Stop-Frist für Orca. Kein zusätzlicher `--supervise`-Prozess im Container. |
-| Plattform | OCI / Docker Compose als Referenz. Debian-VM unter Proxmox als Pilot. Podman und native Proxmox-OCI/LXC separat zu prüfen. |
+## Boundaries
 
-## Orca-Fakten und Quellen
+The manager has no shell, agent-dispatch or general Proxmox API endpoint. Its
+unprivileged Flask process writes only `refresh`, `update` or `rollback` requests
+with a fixed schema. The root-owned parent of the queue prevents replacing the
+status/results paths. The host worker claims requests into a private directory,
+rejects links, non-regular or oversized files, validates every field and checks
+the deployment generation. It verifies ownership markers before stopping a
+container or starting the assigned builder. No Docker socket, host network,
+privileged container or host shell is exposed to the UI.
 
-- [Orca README](https://github.com/stablyai/orca) und
-  [Release v1.4.239](https://github.com/stablyai/orca/releases/tag/v1.4.239).
-  Aktuellstes Release beim Abruf. Das Release-Paket enthält Commit
-  `47f77cf7018ebc0d046b82c6dde31cf704909162`; der separat gelesene Main-Stand war
-  `9ebe41a763c6ea3921c499caa0d5fe4f3125f3dc`. Produktversion und
-  native Artefaktversion sind unterschiedliche Angaben.
-- [Remote Servers](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/remote-servers.mdx):
-  `orca serve`, Linux-Einstieg `orca-ide`, native orcad als Standard,
-  Desktop- und Mobile-Pairing, konfigurierbarer Port 6768. `--pairing-address`
-  ändert die beworbene Adresse, nicht die Bind-Adresse.
-- [serve-Spezifikation](https://github.com/stablyai/orca/blob/main/src/cli/specs/serve.ts):
-  `--supervise` ist für Dienstmanager gedacht und besitzt eigene Restart-Bremsen.
-  Compose übernimmt hier den äußeren Lebenszyklus. `--no-pairing` verhindert
-  die Ausgabe von Pairing-Zugangsdaten in Dienstlogs.
-- [Artefaktvertrag](https://github.com/stablyai/orca/blob/main/src/shared/orcad-artifacts.ts),
-  [Materialisierung](https://github.com/stablyai/orca/blob/main/src/main/orcad/orcad-artifact-materializer.ts)
-  und [Runtime-Pin](https://github.com/stablyai/orca/blob/main/src/shared/node-runtime-pin.ts):
-  Manifest-Schema 4, zielabhängige native Addons, kanonische Hash-Reihenfolge,
-  Artefaktversion `0.1.0+<12-stelliger Hash>`, referenzierte Node-Runtime.
-  Unser Builder prüft das Debian-Paket mit dem offiziellen SHA-512, jede
-  Serverdatei mit dem enthaltenen Manifest und Node sowohl als Archiv als auch
-  als ausführbare Datei gegen Orcas Runtime-Marker. Der erzeugte Inhaltshash
-  wurde zusätzlich gegen Upstreams eigene `computeOrcadFullVersion`-Funktion geprüft.
-- CLI und Server verwenden unterschiedliche Profilvariablen:
-  `ORCA_USER_DATA_PATH` für die CLI, `ORCA_USER_DATA` für orcad. Beide zeigen auf
-  dasselbe Verzeichnis. Der Healthcheck prüft `result.runtime.reachable`,
-  denn `orca status` kann auch bei gestoppter Runtime mit Exitcode 0 antworten.
-- Das Release enthält eine eigene Browser-WebUI, deren vorhandene Dateiliste
-  unverändert übernommen wird. Der Manager ersetzt diese Oberfläche nicht.
-- PTYs können einen Neustart des orcad-Prozesses überleben. Ein ersetzter
-  Container beendet alle seine Prozesse: keine Garantie für weiterlaufende
-  Terminals über Container-Neuerstellung. Persistente Konfiguration ist davon getrennt.
+The worker's root privileges are real: it imports OCI archives, stops/starts only
+scoped guests, owns backups and binds their data. Keep its checkout/configuration
+administrator-owned. The installation is for one trusted operator, not multiple
+untrusted tenants. The manager guest runs its HTTPS entrypoint as mapped guest
+root and drops Flask to UID 1000. The runtime and agents run as UID 1000. All
+native CTs are unprivileged. Docker trial capabilities are reduced to the three
+needed for manager file ownership and dropping UID/GID; the runtime drops all.
 
-## Community-Bridge
+Manager data, runtime HOME and workspaces are explicit separate mounts. Provider
+credentials and pairing state stay in runtime HOME. The manager cannot read it.
+A root-owned dedicated data filesystem contains queue, images, runtime data and
+backups; large image/backup files do not land on the Proxmox host root filesystem.
 
-[BuildContext/orca-mcp](https://github.com/BuildContext/orca-mcp), Version 0.3.0,
-Commit `8e355dd72d168aa81c85d8003cdfeb53821f4de1`, Archiv-SHA-256 im Dockerfile.
-Node ohne zusätzliche npm-Runtime-Dependencies. Ein MCP-Tool `orca` mit unter
-anderem `health`, `dispatch`, `await`, `release`, `guide`, `check`, `cli`.
-stdio sowie Streamable HTTP, Protokollziel 2025-11-25 laut gelesener Dokumentation.
+## Version changes
 
-HTTP bindet nur an Loopback. Das offizielle Bridge-Image allein enthält keine
-funktionierende Orca-Installation. Deshalb leitet unser Bridge-Image von der
-verifizierten Runtime ab. Gemeinsame Profile sind bewusst auf denselben
-Vertrauensbereich beschränkt; es handelt sich nicht um Mandantenisolation.
-Der Manager bekommt diese Profile nicht gemountet.
+Orca release labels, tags and pre-release flags are read from
+[official releases](https://github.com/stablyai/orca/releases). There is no local
+stable/approved/tested list. Missing server archives or published checksums are
+shown as technical limitations. Public metadata/downloads need no runtime GitHub
+login. The builder records the official archive digest, clean manager source
+commit and exported OCI archive digests. It does not publish images.
 
-Upstream aktiviert standardmäßig alle Toolsets. Wir reduzieren auf `status`;
-`status,dispatch` muss ausdrücklich freigeschaltet werden. Der Tunnel selbst
-wird nicht nachgebaut. Sein konkretes Produkt und seine Konfiguration liegen
-dem Repository noch nicht vor.
+A version change builds and creates the stopped replacement first. It checks
+live terminal activity again, gracefully stops the old runtime, copies the
+consistent HOME/workspace group, records the return point, then starts the new
+container. It never restores data automatically. The user tries the release in
+Orca. A failed start retains the previous container and data backup. Failed
+backup attempts bring the unchanged old runtime back up.
 
-## Grenzen der Recherche und des MVP
+Rollback offers software only or software plus saved data. Software only does
+not undo migrations. Data restore replaces the HOME/workspaces group, discarding
+newer active data. Staging/rename and a private journal allow recovery if a data
+swap is interrupted. Interrupted jobs are marked; they are never replayed
+blindly. Retained containers/backups need deliberate administrator cleanup.
 
-Die offizielle Proxmox-Webquelle war aus der Cloud mit HTTP 403 nicht lesbar.
-Deshalb keine behauptete Abnahme nativer Proxmox-OCI/LXC-Funktionen und keine
-Annahme, dass ein Compose-Stack unverändert als einzelner LXC funktioniert.
-Ein Abgleich weiterer Orca-Manager-Projekte ist noch offen; das Projekt behauptet
-keine Alleinstellung. Der Frameworkentscheid basiert auf den konkreten Anforderungen.
+The live terminal census is not a full native-chat job census. Operators stop
+current Orca work before changing its container; the UI requires that
+acknowledgement. The worker refuses a live/unknown terminal count during update.
+Readiness uses native RPC, not an open port, PID, HTML response or exit code alone.
 
-Mac, Mobilgerät, Provider-Konten, Ziel-VM und bestehender Tunnel stehen in dieser
-Cloud nicht zur Abnahme bereit. Die entsprechenden Setup-Seiten sind ehrliche
-Anleitungen; sie automatisieren weder Anmeldungen noch Geräte-Pairing.
+## Upstream facts verified for this pilot
+
+- [Orca v1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261) publishes
+  dedicated Linux x64/arm64 server bundles. This pilot builds x86-64 only. No
+  maintained first-party OCI image was verified. We preserve the full server
+  package, manifests, native runtime marker and bundled Node; the package and
+  executable Node digest are verified. Server bundle SHA-256:
+  `fdb65eb961d3d4c1959601a51bc9bc5663b0403369ad50a422af16947ac3f3ba`.
+- Actual native `orca status --json` in the built image reports version 1.4.261,
+  `runtime.reachable: true` and `remoteUpdateSupport.installMode:
+  unsupported-headless-serve`, `automatic: false`, `reason: updater-unavailable`.
+  Desktop-managed SSH runtime update facilities do not establish an OCI image
+  updater for this standalone deployment.
+- The server-only package is not the desktop/web-client distribution. The
+  manager therefore does not promise Orca's browser UI from this bundle.
+- [Native account commands](https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/account.ts)
+  and [pairing](https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/pair.ts)
+  remain Orca features. Pairing can be requested while the runtime runs. We start
+  with `--no-pairing` so service logs do not contain pairing credentials.
+- The inspected test host reports Proxmox VE 9.2.21. Its installed
+  `PVE/LXC/Create.pm` detects OCI archives and maps Entrypoint/Cmd, User,
+  WorkingDir, Env and stop signal into LXC. A direct OCI layer/image swap was
+  not verified; the implementation uses controlled CT recreation. Native OCI
+  remains a Proxmox technology-preview integration, pending a real pilot.
+  [Proxmox container documentation](https://github.com/proxmox/pve-docs/blob/master/pct.adoc).
+
+## MCP and tunnel
+
+[BuildContext/orca-mcp](https://github.com/BuildContext/orca-mcp),
+commit `8e355dd72d168aa81c85d8003cdfeb53821f4de1`, is pinned and checksummed. It
+runs alongside Orca inside its trust boundary, with the same CLI/HOME. The
+bridge is separate from MCP servers consumed by Orca's agents. It binds only
+loopback and starts only with a private token. Default toolset: `status`.
+Native dispatch requires explicit operator configuration. The status check sends
+MCP initialize, tools/list and a read-only Orca health call.
+
+The tunnel product is **OpenAI Secure MCP Tunnel**, already selected by the user.
+The existing test-host binary reports 0.0.16. Reuse the binary and a separate
+native profile; do not repurpose the profile carrying the existing SSH connector.
+A read-only binary mount and private command/profile files are prepared. A local
+`/readyz` observation is separate from authenticated external MCP access. The
+pilot reports external status as unverified until that full path is exercised.

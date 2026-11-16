@@ -1,27 +1,100 @@
-# Referenz: Debian-VM unter Proxmox
+# Native Proxmox OCI pilot
 
-In dieser Aufgabe wurde keine Proxmox-Infrastruktur verändert oder VM provisioniert.
-Die folgenden Schritte sind eine vorbereitete Anleitung, keine ausgeführte Abnahme.
+Prepared for x86-64 Proxmox VE 9.2.21. **Not yet installed on the test host.**
+OCI support is a Proxmox technology preview. The installed host code was checked:
+it imports OCI archives and carries image entrypoint, user, environment and stop
+signal into the CT. No direct image-layer update was verified, so updates use a
+controlled replacement CT. This is not a Docker-in-VM runtime workaround.
 
-Eine dedizierte Debian-13-Minimal-VM verwenden. Startwerte: 4 vCPU, 8 GB RAM,
-40 GB Systemdisk, 60 GB separater Workspace-Datenträger. Kleinere Piloten mit
-2 vCPU und 4 GB RAM sind möglich, Agentjobs und `ORCA_MEMORY_LIMIT` passend begrenzen.
-Keine grafische Desktopumgebung nötig. Backup und Firewall über vorhandene
-Proxmox-/Debian-Verfahren betreiben.
+## Resources and prerequisites
 
-1. VM über vorhandene Proxmox-Verwaltung anlegen. Keine produktiven Systeme ersetzen.
-2. Im **Gast** das Vorbereitungsskript lesen und bewusst als root ausführen:
-   `bash deploy/proxmox/prepare-debian.sh --apply`.
-3. Repository mit dem eigenen GitHub-Zugang im Gast auschecken. README-Schnellstart
-   befolgen. Zertifikats-SAN und `.env` auf die LAN/VPN-Adresse abstimmen.
-4. Workspace-Volume auf den vorgesehenen Datenträger legen. Host-Bindmounts nur
-   für explizite Datenverzeichnisse; UID/GID 1000 und minimale Rechte erhalten.
-5. Healthchecks, HTTPS, Administrator, Provider-Login, Pairing und Neustart testen.
-   Backup und Restore in einer Testinstanz prüfen, bevor produktive Nutzung beginnt.
+| Resource | Starting size | Purpose |
+| --- | --- | --- |
+| Dedicated Debian 13 builder VM | 2 vCPU, 2 GiB RAM, 24 GiB disk | Docker/skopeo builds only; explicit SSH alias and pinned host key |
+| Unprivileged runtime OCI CT | 2 cores, 3 GiB RAM, 8 GiB rootfs | Native Orca, provider CLIs, optional existing bridge/tunnel |
+| Unprivileged manager OCI CT | 1 core, 768 MiB RAM, 8 GiB rootfs | Caddy + English management UI, independent of runtime |
+| Dedicated mounted data filesystem | Suggested 80 GiB initially | Workspaces, profile, queue, private images and return points |
 
-OCI/LXC ab Proxmox 9.1 ist ein separater Prüfpfad. Compose-Diensttrennung,
-Netzwerknamespace der Bridge, UID-Zuordnung, native Addons, Init-/Signalverhalten
-und Volume-Pfade sind dort explizit zu validieren. Kein privilegierter LXC als
-Workaround. Bis zur echten Abnahme bleibt die VM mit Docker die Referenzvariante.
-Podman ist ebenfalls noch nicht getestet; besonders `network_mode: service:runtime`
-und Compose-Secrets benötigen einen tatsächlichen Kompatibilitätstest.
+Use existing storage and bridge. Allocate unused IDs immediately before applying;
+the example IDs are placeholders, not reserved resources. Keep enough RAM and
+storage for existing guests and at least one stopped replacement. The installer
+never creates the builder, allocates/formats a data disk or overwrites a guest.
+Those resources must be explicitly assigned first. No test dependencies are
+installed on the Proxmox host.
+
+The assigned builder must have the description marker `OSM:pilot:builder` (use
+your configured installation name), QEMU guest agent, a private SSH alias with
+strict host-key verification, and an account allowed to build with Docker inside
+that guest. Keep its access separate from the host's root credentials. Do not
+reuse an unrelated test VM. If provisioning through the established SSH skill,
+follow that workflow's guest credential/documentation requirements.
+
+## Prepare private archives in the builder
+
+Read `prepare-debian.sh`; it only changes a Debian 13 **guest** with `--apply` and
+refuses a PVE host. Check out the selected manager source commit in the assigned
+builder, then build from a clean tree:
+
+```bash
+bash deploy/proxmox/prepare-debian.sh --apply
+python3 scripts/build-oci.py --version 1.4.261 --manager --output /srv/orca-oci
+```
+
+Output: `orca-runtime-1.4.261.oci.tar`, `orca-manager-0.2.0.oci.tar` and
+`manifest-1.4.261.json`. Transfer these privately through the existing SSH/SCP
+connection. The worker rejects a different/dirty manager source or mismatched
+upstream/OCI checksum. No registry push, GitHub account pairing or public image
+is required. An output lock prevents overlapping builds.
+
+## Print the exact installation plan
+
+On the host, keep a clean root-owned source checkout (for example
+`/opt/orca-server-manager`) and a private root-owned configuration. Start from
+`deployment.example.json` and replace IDs, paths, storage, bridge, builder SSH
+alias/config and `source_commit` with the intended clean commit. The assigned
+filesystem at `data` must already be mounted, empty and root-owned. The script
+checks it before writing and never formats disks.
+
+```bash
+python3 deploy/proxmox/install.py --config /root/orca-pilot.json \
+  --archives /mnt/private-transfer
+```
+
+This default mode prints the concrete `pct` commands without running them. Review
+the plan. Applying is a separate explicit action after resources are assigned:
+
+```bash
+python3 deploy/proxmox/install.py --config /root/orca-pilot.json \
+  --archives /mnt/private-transfer --apply
+```
+
+The installer verifies IDs, clean source, ownership, OCI format and checksums;
+creates two unprivileged CTs with explicit mounts; starts them; and installs
+`orca-manager-INSTALLATION.service/.timer`. No force flags, host socket mounts,
+privileged mode or automatic cleanup are used. Failed imports leave inspectable
+partial resources and the saved installation plan; the installer refuses to
+reuse a previous base directory. Do not rerun by deleting it blindly.
+
+The queue directory is shared, but only its `requests` subdirectory is writable
+by the web process. Status/results are host-owned. Runtime HOME/workspaces and
+private integration files are not mounted into the manager. Host IDs 100000 and
+101000 assume the default PVE unprivileged UID mapping; custom idmaps need an
+explicit implementation review before use.
+
+## First trial
+
+Read the guest IPs from PVE, open the manager via HTTPS and follow the native
+setup guides. The exact bootstrap command and native shell commands are in
+[OPERATIONS.md](../../docs/OPERATIONS.md). Reserve the DHCP leases; the runtime
+MAC is reused across replacements. Install/trust a certificate matching your
+actual manager address. Restrict access to the intended LAN/VPN.
+
+Exercise native RPC, a provider login and first Orca task, Mac/mobile pairing,
+optional GitHub access and the separate bridge/tunnel. Then use disposable files
+to try a chosen available version and both rollback policies. The cloud tests
+are not evidence that these PVE or external-device checks have happened.
+
+Automatic approval review rejected the earlier attempt to create/start a
+persistent builder VM with proposed password access and passwordless sudo. No
+VM/CT was created. Provisioning awaits explicit approval; this preparation does
+not bypass that rejection.
