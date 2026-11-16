@@ -13,9 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from worker import DeploymentError, Worker, load_config, run
-
+from deploy.proxmox.worker import DeploymentError, Worker, load_config, run
 from manager.control import atomic_document, read_document
 
 
