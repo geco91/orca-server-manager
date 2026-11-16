@@ -206,3 +206,16 @@ def test_release_outage_keeps_cached_metadata_and_no_controller_never_suggests_s
         assert "Previously retrieved data" in response.text
         assert "1.4.261" in response.text
         assert "No version change can be started" in response.text
+
+
+def test_explicit_observation_mode_survives_a_private_worker_umask(tmp_path):
+    prior = os.umask(0o077)
+    try:
+        public = tmp_path / "status.json"
+        private = tmp_path / "request.json"
+        atomic_document(public, {"runtime": "sanitized"}, mode=0o644)
+        atomic_document(private, {"operation": "private"})
+        assert public.stat().st_mode & 0o777 == 0o644
+        assert private.stat().st_mode & 0o777 == 0o600
+    finally:
+        os.umask(prior)

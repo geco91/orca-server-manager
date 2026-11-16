@@ -54,6 +54,7 @@ def atomic_document(path, value, mode=0o600):
         with os.fdopen(fd, "w") as stream:
             json.dump(value, stream, ensure_ascii=True)
             stream.flush()
+            os.fchmod(stream.fileno(), mode)
             os.fsync(stream.fileno())
         os.replace(temporary, path)
     finally:

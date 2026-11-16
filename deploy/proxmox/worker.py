@@ -28,7 +28,17 @@ class DeploymentError(ValueError):
 
 
 def run(args, *, timeout=120):
-    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
+    # PVE creates /var/lib/lxc/<id>/rootfs with inherited directory modes. Its
+    # mapped OCI extractor needs the standard traversal rights during creation.
+    native_create = args[:2] == ["pct", "create"]
+    result = subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        umask=0o022 if native_create else -1,
+    )
     if result.returncode:
         # Raw command output stays out of the UI; native tools can include private paths.
         raise DeploymentError(f"{Path(args[0]).name} failed with exit code {result.returncode}.")

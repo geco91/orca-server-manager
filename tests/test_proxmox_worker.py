@@ -336,3 +336,21 @@ def test_initial_resume_cannot_reinitialize_a_different_or_updated_deployment(de
     validate_resume(saved, worker.cfg)
     with pytest.raises(DeploymentError):
         validate_resume(saved | changed, worker.cfg)
+
+
+def test_only_native_container_creation_gets_the_pve_directory_umask(monkeypatch):
+    from types import SimpleNamespace
+
+    from deploy.proxmox import worker as module
+
+    calls = []
+
+    def command(args, **kwargs):
+        calls.append(kwargs["umask"])
+        return SimpleNamespace(returncode=0, stdout="ok")
+
+    monkeypatch.setattr(module.subprocess, "run", command)
+    module.run(["pct", "create", "201", "/images/runtime.tar"])
+    module.run(["pct", "config", "201"])
+    module.run(["cp", "-a", "/private/data", "/private/backup"])
+    assert calls == [0o022, -1, -1]
