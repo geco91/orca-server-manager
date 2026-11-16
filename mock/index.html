@@ -4,25 +4,36 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Orca Server Manager · Interaktive Demo</title>
+  <title>Orca Server Manager · UI-Prototyp</title>
   <style>/* MOCK_STYLES */</style>
 </head>
 <body>
-  <div class="demo-banner"><strong>INTERAKTIVE DEMO</strong><span>Alle Verbindungen und Prüfergebnisse sind simuliert.</span></div>
-  <header>
-    <button class="brand brand-button" data-action="overview"><span class="mark">◒</span> Orca <span>Server Manager</span></button>
-    <div class="header-actions"><span class="demo-host">orca-pilot · Demo-Server</span><button class="quiet" data-action="help">Über diese Demo</button></div>
+  <div class="demo-banner"><strong>UI-PROTOTYP</strong><span>Verbindungen, Versionswechsel und Sicherungen sind simuliert.</span><button class="banner-help" data-action="help">Hinweise</button></div>
+  <header class="app-header">
+    <button class="brand brand-button" data-action="navigate" data-page="overview" aria-label="Orca Server Manager Übersicht"><span class="mark" aria-hidden="true">◒</span><span class="brand-name">Orca <small>Server Manager</small></span></button>
+    <nav id="main-nav" aria-label="Hauptnavigation"></nav>
+    <span class="host-label"><span class="host-dot" aria-hidden="true"></span>orca-pilot</span>
   </header>
-  <div class="demo-toolbar">
+  <div class="demo-toolbar" aria-label="Demo steuern">
     <label for="scenario">Szenario</label>
-    <select id="scenario"><option value="fresh">Neuinstallation</option><option value="ready">Alles eingerichtet</option><option value="runtime-error">Orca startet nicht</option><option value="tunnel-error">Tunnel-Anmeldung scheitert</option></select>
-    <span class="toolbar-note">Ohne Zugangsdaten ausprobieren</span>
-    <button class="quiet" data-action="reset">Demo zurücksetzen</button>
+    <select id="scenario">
+      <option value="fresh">Basis prüfen · Verbindungen offen</option>
+      <option value="ready">Orca und Verbindungen eingerichtet</option>
+      <option value="paired-offline">Geräte gekoppelt, aber offline</option>
+      <option value="tunnel-error">OpenAI-Tunnel nicht erreichbar</option>
+      <option value="update-failure">Neue Version startet nicht</option>
+      <option value="active-work">Update bei laufendem Agentauftrag</option>
+    </select>
+    <span class="toolbar-note">Nur der Zustand dieser Demo ändert sich.</span>
+    <button class="quiet" data-action="reset">Zurücksetzen</button>
   </div>
   <main id="app"></main>
-  <div id="announcer" class="sr-only" aria-live="polite"></div>
-  <dialog id="demo-help"><div class="dialog-body"><span class="eyebrow">VORSCHAU DES EINRICHTUNGSABLAUFS</span><h2>Einmal alles durchspielen.</h2><p>Diese eigenständige Demo zeigt den geplanten interaktiven Setup-Ablauf im Design des Managers. Die laufende Manager-Version enthält derzeit Anleitungen und technische Prüfungen; die hier gezeigten Verbindungsaktionen sind ein UI-Prototyp.</p><p>Es werden keine Server angesprochen, keine Agenten gestartet und keine Anmeldedaten abgefragt. Auch das Geräte-Pairing und der MCP-Test sind simuliert.</p><p>Dein Fortschritt bleibt nur in diesem geöffneten Tab. Neu laden oder „Demo zurücksetzen“ beginnt von vorn. Die Beispieldaten werden nicht auf dem Gerät gespeichert.</p><button data-action="close-help">Verstanden</button></div></dialog>
-  <footer>Orca übernimmt die Entwicklungsarbeit. Der Manager begleitet Einrichtung und Betrieb. · Demo</footer>
+  <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+  <dialog id="demo-help" aria-labelledby="help-title">
+    <div class="dialog-body"><span class="eyebrow">ÜBER DIESE VORSCHAU</span><h2 id="help-title">Betrieb begleiten. In Orca arbeiten.</h2><p>Dieser Offline-Prototyp zeigt den überarbeiteten Manager: native Einrichtung mit Anleitung, technische Statusprüfungen sowie Versionswahl, Update und Rücksprung.</p><p>Orca-Versionen sind Beispieldaten aus offiziellen Releases, Stand 16. November 2026. Die Liste wird hier nicht live geladen. Der Manager vergibt keine eigenen Stabilitätsurteile oder Versionsfreigaben.</p><p>Alle Abläufe bleiben in diesem Tab. Es werden keine Konten verbunden, keine Agenten gestartet, keine Images gebaut und keine echten Daten gesichert oder zurückgesetzt. Neu laden setzt die Demo zurück.</p><button data-action="close-help">Verstanden</button></div>
+  </dialog>
+  <dialog id="rollback-dialog" aria-labelledby="rollback-title"><div id="rollback-body" class="dialog-body"></div></dialog>
+  <footer>Orca übernimmt die Entwicklungsarbeit. Der Manager begleitet Einrichtung, Verbindungen und Betrieb.<span>Offline-Prototyp · 16. November 2026</span></footer>
   <script>/* MOCK_SCRIPT */</script>
 </body>
 </html>
