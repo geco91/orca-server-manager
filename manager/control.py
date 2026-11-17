@@ -9,6 +9,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from manager.pairing import validate_pairing
 from manager.releases import require_upgrade, validate_version
 
 JOB_ID = re.compile(r"[a-f0-9]{32}\Z")
@@ -106,7 +107,7 @@ class Controller:
             }
 
     def submit(self, action, version=None, restore_data=False):
-        if action not in {"refresh", "update", "rollback"}:
+        if action not in {"refresh", "update", "rollback", "pair_web"}:
             raise ControlError("Unsupported deployment action.")
         if action == "update":
             validate_version(version)
@@ -120,6 +121,13 @@ class Controller:
                 "The deployment controller is unavailable. No operation was started."
             )
         deployment = snapshot.get("deployment", {})
+        if action == "pair_web" and (
+            snapshot.get("runtime", {}).get("reachable") is not True
+            or not snapshot.get("runtime", {}).get("web_url")
+        ):
+            raise ControlError(
+                "The Orca WebUI is not reachable yet. Refresh the server status and try again."
+            )
         if action == "update":
             require_upgrade(version, deployment.get("version"))
         if action == "rollback" and not deployment.get("previous_version"):
@@ -136,3 +144,14 @@ class Controller:
         }
         atomic_document(self.directory / "requests" / f"{job_id}.json", request)
         return request
+
+    def pairing(self, job_id, origin):
+        if not JOB_ID.fullmatch(job_id or "") or not self.directory:
+            raise ControlError("Unknown pairing request.")
+        snapshot = self.snapshot()
+        if not snapshot["controller"]["available"]:
+            raise ControlError("Refresh the runtime status before opening this pairing link.")
+        payload = read_document(self.directory / "pairings" / (job_id + ".json"))
+        return validate_pairing(
+            payload, origin, job_id, snapshot.get("deployment", {}).get("generation")
+        )

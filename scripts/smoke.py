@@ -10,6 +10,7 @@ import secrets
 import socket
 import ssl
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -17,6 +18,7 @@ from urllib.parse import urlencode, urljoin
 from urllib.request import HTTPCookieProcessor, HTTPSHandler, ProxyHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 
 def free_port():
@@ -60,7 +62,7 @@ def main():
             ORCA_WEB_URL=origin + "/orca/web-index.html",
         )
 
-        def compose(*args):
+        def compose(*args, input_data=None):
             result = subprocess.run(
                 command + list(args),
                 cwd=ROOT,
@@ -68,11 +70,12 @@ def main():
                 check=False,
                 text=True,
                 capture_output=True,
+                input=input_data,
                 timeout=180,
             )
             if result.returncode:
                 # Do not echo stdout: an exec call deliberately reads a private setup token.
-                raise RuntimeError(f"Compose {args[0]} failed: {result.stderr.strip()}")
+                raise RuntimeError(f"Compose {args[0]} failed; private command output suppressed.")
             return result.stdout
 
         try:
@@ -134,16 +137,17 @@ def main():
                 "cat",
                 "/data/manager/bootstrap.token",
             ).strip()
+            password = secrets.token_hex(4)
             html = post(
                 "/setup",
                 {
                     "csrf_token": csrf("/setup"),
                     "token": token,
-                    "password": secrets.token_hex(4),
+                    "password": password,
                 },
             )
             assert "Run Orca. Keep connections in view." in html
-            assert "Open Orca WebUI" in html and 'target="_blank" rel="noopener noreferrer"' in html
+            assert "Open Orca WebUI" in html and 'target="_blank" rel="noopener"' in html
             status = json.loads(page("/api/status"))
             assert status["runtime"]["state"] == "unknown"  # Compose has no Proxmox worker.
             assert not status["controller"]["available"]
@@ -162,19 +166,9 @@ def main():
             assert native["runtime"]["version"] == "1.4.261"
             assert native["runtime"]["active_terminals"] == 0
             assert native["runtime"]["web_url"].endswith(":6768/web-index.html")
-            offer = json.loads(
-                compose(
-                    "exec",
-                    "-T",
-                    "runtime",
-                    "orca",
-                    "pair",
-                    "--address",
-                    origin.replace("https://", "wss://") + "/orca",
-                    "--json",
-                )
-            )
-            assert offer.get("ok") is True, "Native Orca rejected the HTTPS proxy pairing address"
+            from pairing_smoke import check_pairing
+
+            check_pairing(compose, native, origin, page, post, csrf, password)
             provider_checks = {
                 row["name"]: row["value"] for row in native["integrations"]["providers"]["checks"]
             }

@@ -11,6 +11,7 @@ import click
 from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, UserMixin, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect
+from werkzeug.exceptions import NotFound
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -22,6 +23,7 @@ from manager.control import (
     read_document,
 )
 from manager.links import public_web_url
+from manager.pairing import PAIRING_TTL, PairingError
 from manager.releases import ReleaseError, list_releases, upgrades_only
 
 STEPS = [
@@ -56,6 +58,7 @@ def create_app(test_config=None):
         STATE_DIR=os.environ.get("OSM_STATE_DIR", "state/manager"),
         ORCA_INTERNAL_URL=os.environ.get("ORCA_INTERNAL_URL", "http://runtime:6768"),
         ORCA_WEB_URL=os.environ.get("ORCA_WEB_URL", ""),
+        ORIGIN=os.environ.get("OSM_ORIGIN", "https://localhost"),
         CONTROL_DIR=os.environ.get("OSM_CONTROL_DIR"),
         ARCHITECTURE=os.environ.get("OSM_ARCHITECTURE", "amd64"),
         SESSION_COOKIE_NAME="__Host-osm",
@@ -80,6 +83,8 @@ def create_app(test_config=None):
           CREATE TABLE IF NOT EXISTS steps (name TEXT PRIMARY KEY, skipped INTEGER NOT NULL);
           CREATE TABLE IF NOT EXISTS operations (id TEXT PRIMARY KEY, created REAL NOT NULL);
           CREATE TABLE IF NOT EXISTS preferences (name TEXT PRIMARY KEY, value TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS web_pairings (
+            id TEXT PRIMARY KEY, owner TEXT NOT NULL, created REAL NOT NULL);
           CREATE TABLE IF NOT EXISTS attempts (id INTEGER PRIMARY KEY CHECK(id=1),
             failures INTEGER NOT NULL, until REAL NOT NULL);
         """)
@@ -123,6 +128,10 @@ def create_app(test_config=None):
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
+        if request.endpoint in {"web_pairing", "web_pairing_job", "web_pairing_data"}:
+            response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        if request.endpoint == "web_pairing_data":
+            response.headers["Referrer-Policy"] = "no-referrer"
         if request.is_secure:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
@@ -283,12 +292,111 @@ def create_app(test_config=None):
     @login_required
     def overview():
         snapshot = current_status()
+        session.setdefault("pairing_owner", secrets.token_hex(32))
         return render_template(
             "overview.html",
             status=snapshot,
             free_gb=round(shutil.disk_usage(state).free / 2**30, 1),
             orca_url=public_web_url(app.config["ORCA_WEB_URL"])
             or ("/orca/web-index.html" if snapshot["runtime"]["web_url"] else ""),
+        )
+
+    def owned_pairing(job_id):
+        if not job_id or not session.get("pairing_owner"):
+            abort(404)
+        with connect() as db:
+            row = db.execute(
+                "SELECT id,created FROM web_pairings WHERE id=? AND owner=?",
+                (job_id, session["pairing_owner"]),
+            ).fetchone()
+        if not row or time.time() - row[1] > 900:
+            abort(404)
+        return row
+
+    def pairing_page(job_id=None, automatic=False, error=None, code=200):
+        return render_template(
+            "web-pairing.html",
+            job_id=job_id,
+            automatic=automatic,
+            error=error,
+            status=current_status(),
+        ), code
+
+    @app.get("/web-ui")
+    @login_required
+    def web_pairing():
+        session.setdefault("pairing_owner", secrets.token_hex(32))
+        job_id = session.get("web_pairing_job")
+        if job_id:
+            try:
+                owned_pairing(job_id)
+            except NotFound:
+                job_id = None
+        return pairing_page(job_id)
+
+    @app.post("/actions/web-pairing")
+    @login_required
+    def prepare_web_pairing():
+        if active_operation():
+            return pairing_page(
+                error="Finish the running deployment operation before connecting the WebUI.",
+                code=409,
+            )
+        owner = session.setdefault("pairing_owner", secrets.token_hex(32))
+        automatic = request.form.get("open") == "1"
+        with connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            recent = db.execute(
+                "SELECT id FROM web_pairings WHERE owner=? AND created>? ORDER BY created DESC LIMIT 1",
+                (owner, time.time() - PAIRING_TTL),
+            ).fetchone()
+            if recent and controller.result(recent[0]).get("state") in {"queued", "running"}:
+                job_id = recent[0]
+            else:
+                try:
+                    job = controller.submit("pair_web")
+                except (ControlError, OSError) as error:
+                    return pairing_page(error=str(error), code=503)
+                job_id = job["id"]
+                db.execute("INSERT INTO web_pairings VALUES (?,?,?)", (job_id, owner, time.time()))
+            session["web_pairing_job"] = job_id
+        return redirect(
+            url_for("web_pairing_job", job_id=job_id, open="1" if automatic else "0"), code=303
+        )
+
+    @app.get("/web-ui/<job_id>")
+    @login_required
+    def web_pairing_job(job_id):
+        owned_pairing(job_id)
+        return pairing_page(job_id, request.args.get("open") == "1")
+
+    @app.get("/api/web-pairing/<job_id>")
+    @login_required
+    def web_pairing_data(job_id):
+        row = owned_pairing(job_id)
+        job = controller.result(job_id)
+        state_name = job.get("state", "queued")
+        if state_name == "completed":
+            try:
+                pairing = controller.pairing(job_id, app.config["ORIGIN"])
+                return jsonify(state="ready", pairing=pairing)
+            except (ControlError, PairingError):
+                return jsonify(
+                    state="expired",
+                    message="This link is no longer available. Prepare another pairing link.",
+                )
+        if state_name in {"failed", "blocked", "interrupted"}:
+            return jsonify(
+                state="failed",
+                message=job.get("message", "Pairing could not be prepared. Try again."),
+            )
+        if time.time() - row[1] > PAIRING_TTL:
+            return jsonify(
+                state="expired",
+                message="The pairing request timed out. Prepare another link when the worker is ready.",
+            )
+        return jsonify(
+            state=state_name, message=job.get("message", "Waiting for the deployment worker.")
         )
 
     @app.get("/connections")

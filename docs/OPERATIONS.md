@@ -41,13 +41,25 @@ manager. Do not disable TLS verification.
 
 ## Native setup, not a second Orca
 
-The overview offers **Open Orca WebUI** links in a new tab. The original Orca
-browser client is served through the manager's existing HTTPS endpoint at
-`/orca/web-index.html`. It uses Orca's own pairing, separate from the manager
-administrator login. Request the native pairing link inside the runtime with
-`orca pair --address wss://YOUR-MANAGER-HOST/orca`; replace the host with the
-manager's HTTPS address (including its port, if needed). Do not store pairing fragments in the
-manager's public link configuration.
+Choose **Open and connect Orca WebUI** in the overview. A new tab waits for the
+scoped host worker to request Orca's own browser-pairing link, then opens that
+link automatically. The original browser client is served at
+`/orca/web-index.html` through the manager's existing HTTPS endpoint. Orca
+performs the connection and stores its browser identity; the manager
+administrator login is separate. No runtime restart or provider login is needed.
+
+If Orca still asks for a code, return to **Pairing details & manual fallback**.
+Choose **Prepare pairing link**, copy the displayed URL (or code), paste it into
+Orca's **Pairing URL or code** field and choose **Connect**. Prepare another link
+if it was consumed or expired. The manager's private copy is available for two
+minutes, only to the requesting signed-in browser session. The native runtime
+controls the underlying offer's lifetime. A ready link is not a connected-client
+observation. Existing paired clients are not disconnected.
+
+When administering a standalone Docker trial without the Proxmox worker, the
+native terminal fallback remains `orca pair --address wss://YOUR-MANAGER-HOST/orca`
+inside the runtime (include the HTTPS port when needed). Never put pairing
+fragments in the manager's public link configuration.
 
 The proxy learns only the assigned private runtime address/port from the host
 worker's sanitized status. It preserves that target during stale observations
@@ -91,7 +103,9 @@ claims a working connection. During long image builds the last snapshot may
 expire; the operation page still displays the queued/running operation. The next
 observation refreshes status. The worker reads native RPC, a complete local
 terminal census, account counts, native Codex login status, GitHub identity and
-MCP health. Raw account JSON, tokens and pairing offers are not returned to the UI.
+MCP health. Raw account JSON, tokens and pairing offers never enter status
+snapshots or ordinary job results. A requested browser pairing link travels
+through a separate private, session-owned endpoint.
 
 ## Update and rollback
 

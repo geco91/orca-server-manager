@@ -26,6 +26,14 @@ coordinator. Containers are not a multi-tenant isolation boundary.
   Automatic upstream discovery accepts only the host-published private IPv4
   address on port 6768. Browser requests cannot choose another destination.
   Only that assigned upstream bypasses any configured outgoing HTTP proxy.
+- Browser-pairing preparation requires an authenticated, CSRF-protected POST.
+  The fixed worker command uses the supervisor's protected HTTPS origin and
+  validates Orca's returned endpoint/fragment. Private offers are stored outside
+  status/results with mapped-group read access, expire locally after two minutes
+  and are served only to the requesting browser session without caching.
+  Credential JSON uses no-referrer; HTML keeps same-origin referrers for strict
+  HTTPS CSRF checks. Native offer fragments are never sent as HTTP referrers.
+  The underlying pairing and credential lifetime remain native Orca behavior.
 - Administrator passwords accept 8–256 characters and remain scrypt-hashed.
   Release selection and both deployment layers reject downgrades/reinstalls;
   older software is accessible only through an existing saved rollback point.

@@ -19,7 +19,7 @@ flowchart LR
 ## Boundaries
 
 The manager has no shell, agent-dispatch or general Proxmox API endpoint. Its
-unprivileged Flask process writes only `refresh`, `update` or `rollback` requests
+unprivileged Flask process writes only `refresh`, `update`, `rollback` or `pair_web` requests
 with a fixed schema. The root-owned parent of the queue prevents replacing the
 status/results paths. The host worker claims requests into a private directory,
 rejects links, non-regular or oversized files, validates every field and checks
@@ -37,6 +37,26 @@ needed for manager file ownership and dropping UID/GID; the runtime drops all.
 
 Manager data, runtime HOME and workspaces are explicit separate mounts. Provider
 credentials and pairing state stay in runtime HOME. The manager cannot read it.
+Browser pairing uses Orca's fixed native CLI command, never direct profile reads.
+
+An authenticated CSRF-protected POST requests browser pairing. The worker checks
+the assigned manager/runtime, deployment generation and request age, and invokes
+`orca pair --address wss://MANAGER-ORIGIN/orca --json` as the runtime user. The
+origin comes from a mapped-root-owned descriptor written by the manager's
+supervisor, not request headers or browser-supplied fields. The worker validates
+Orca's endpoint and original browser fragment, then forwards the native URL
+unchanged. Orca's original frontend performs pairing; no second protocol exists.
+
+Credentials never enter public status or ordinary job results. A separate
+root-owned `control/pairings` directory uses mode 02710 and mapped manager group
+101000, with files mode 0640. Only the requesting authenticated browser session
+can retrieve its result through the manager. Responses are uncached; credential
+JSON omits referrers and HTML preserves only same-origin referrers for strict
+CSRF checks. Native offers travel only in fragments, never HTTP referrers.
+Private copies expire after two minutes and are pruned by the worker;
+a changed deployment generation invalidates them. New-tab progress redirects to
+Orca's fragment URL, while the details page offers URL/code copying and native
+manual instructions. Link readiness never implies a connected browser.
 A root-owned dedicated data filesystem contains queue, images, runtime data and
 backups; large image/backup files do not land on the Proxmox host root filesystem.
 

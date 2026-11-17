@@ -7,7 +7,7 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
 ## Implementation and builds
 
 - `uv sync --frozen` and Ruff lint/format checks: passed.
-- `uv run pytest -q`: **98 passed**. Covers authentication/CSRF/session reset,
+- `uv run pytest -q`: **124 passed**. Covers authentication/CSRF/session reset,
   official source/version validation, stale status and bounded queue handling,
   generation fences, active/unknown terminal blocking, rollback modes, failed
   backup/start, ownership markers, interrupted data swap recovery, mapped-root
@@ -19,6 +19,9 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
   pre-release ordering, cached catalog refiltering, forged downgrade requests,
   missing rollback points, safe WebUI links/upstreams and original browser asset
   extraction/checksums without links, traversal, desktop-only files or source maps.
+  Native browser pairing checks cover protected origin reads, fixed destinations,
+  CSRF/login, session ownership, offer expiration/generation changes, secret-free
+  public results and pairing without stopping active terminals.
 - Previous setup-Notes baseline source:
   `d78750b82f21ecd3738e26c3c9fe4e6ca349ea33`. Its GitHub Actions checks passed.
   The dedicated builder's final private OCI export also exited zero and recorded
@@ -41,6 +44,13 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
   browser checks**, including responsive layouts and English text. Those browser
   update/rollback requests used a separate controller fixture. They are distinct
   from the real native operations below.
+- `OSM_BROWSER_QA=1 OSM_CHROMIUM=/usr/bin/chromium python3 scripts/smoke.py`:
+  the real Chromium browser signed in, opened the dashboard's new-tab form and
+  automatically imported Orca's original pairing URL. An authenticated native
+  `status.get` RPC succeeded through the original WebUI before and after reload;
+  Orca removed the secret fragment from the address bar. The disposable test uses
+  a queue transport fixture instead of Proxmox, but its pairing CLI, HTTPS proxy,
+  original Orca client and encrypted authenticated runtime connection are real.
 
 ## Native Proxmox trial
 

@@ -9,6 +9,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from manager.control import atomic_document
+from manager.pairing import manager_origin
 from manager.proxy import proxy_environment, proxy_target
 
 data = Path(os.environ.get("OSM_DATA_DIR", "/data"))
@@ -26,7 +28,8 @@ try:
 except OSError:
     pass
 ipaddress.ip_address(address)
-origin = os.environ.get("OSM_ORIGIN") or f"https://{address}"
+origin = manager_origin(os.environ.get("OSM_ORIGIN") or f"https://{address}")
+atomic_document(data / "manager-origin.json", {"origin": origin}, mode=0o644)
 environment = dict(
     os.environ,
     OSM_STATE_DIR=str(state),
