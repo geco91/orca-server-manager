@@ -9,6 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.12.23"

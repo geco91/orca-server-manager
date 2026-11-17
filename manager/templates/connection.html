@@ -6,16 +6,19 @@
 <div class="detail-grid">
 <section class="panel">
 <span class="eyebrow">NATIVE SETUP</span><h2>Guide</h2>
-{% if status.deployment.runtime_id %}<p class="guide-note">From the Proxmox administrator console, enter this runtime as the Orca user:</p><pre><code>pct exec {{ status.deployment.runtime_id }} -- runuser -u orca -- /bin/bash</code></pre>{% endif %}
+{% if status.deployment.runtime_id and name != 'providers' %}<p class="guide-note">From the Proxmox administrator console, enter this runtime as the Orca user:</p><pre><code>pct exec {{ status.deployment.runtime_id }} -- runuser -u orca -- /bin/bash</code></pre>{% endif %}
 {% if name == 'server' %}
 <p>The worker reads the native Orca RPC status. A listening port or a web page alone does not prove that Orca is ready.</p><p>Check the runtime logs through the deployment's administrator console if it is not reachable.</p><pre><code>orca status --json</code></pre>
 {% elif name == 'providers' %}
-<ol class="guide-list"><li><strong>Provide the agent CLI on the server.</strong> Use the optional provider image extension if a CLI is missing.</li><li><strong>Run the native sign-in inside the Orca runtime.</strong> A login on your Mac does not sign in the server.</li><li><strong>Start your first agent task in Orca yourself.</strong> The status check does not start a paid agent call.</li></ol>
-<details><summary>Commands inside the runtime</summary><pre><code>orca account add --agent codex
-orca account add --agent opencode
+<p>The standard server image includes <strong>OpenCode</strong>. Initial setup selects it as the Orca host default when no agent has been chosen. No API key or provider account is created.</p>
+<ol class="guide-list"><li><strong>Choose OpenCode in Orca.</strong> In the agent picker, right-click <strong>OpenCode</strong> and choose <strong>Set as default</strong>. Orca saves this WebUI preference separately for each browser.</li><li><strong>Add a model provider when needed.</strong> Open OpenCode in your workspace and use <code>/connect</code> to enter a provider key or follow its native sign-in. More providers can be added later.</li><li><strong>Start your first task in Orca.</strong> A prepared agent does not confirm that a provider is authenticated; this status check starts no agent task.</li></ol>
+<p><a class="button secondary-button" href="{{ url_for('web_pairing') }}">Open Orca WebUI &amp; pairing →</a></p>
+<p class="guide-note">Provider credentials follow OpenCode's native profile scope. Workspace-specific options and environment references belong in OpenCode's project configuration.</p>
+<details><summary>Optional native account management</summary><p>Use Orca's account setup for additional agent accounts. A login on your Mac does not sign in the server.</p>{% if status.deployment.runtime_id %}<pre><code>pct exec {{ status.deployment.runtime_id }} -- runuser -u orca -- /bin/bash</code></pre>{% endif %}<pre><code>orca account add --agent codex
 orca account list --json</code></pre></details>
 <p class="guide-note">Login screens belong to Orca and the provider. The manager does not ask for API keys or passwords.</p>
 <a href="https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/account.ts" target="_blank" rel="noopener noreferrer">Orca account commands ↗</a>
+<a href="https://opencode.ai/docs/config/" target="_blank" rel="noopener noreferrer">OpenCode project configuration ↗</a>
 {% elif name == 'github' %}
 <ol class="guide-list"><li><strong>Set up only when needed.</strong> GitHub enables repository access, pushes and pull requests.</li><li><strong>Sign in on the server.</strong> Open a terminal inside the Orca runtime and use the native GitHub CLI.</li><li><strong>Read identity and permissions.</strong> The login on your Mac is separate.</li></ol>
 <details><summary>Commands inside the runtime</summary><pre><code>gh auth login --hostname github.com --web

@@ -20,6 +20,12 @@ coordinator. Containers are not a multi-tenant isolation boundary.
   Tokens, pairing offers, provider credentials and private keys never belong in
   Git, image layers or logs. Optional service output is suppressed because an
   upstream process may print a token-bearing URL.
+- Initial OpenCode setup changes only the native host agent preference through
+  the local authenticated settings RPC. Runtime metadata must be an owned,
+  private regular file; the Unix socket and directory must belong to that same
+  runtime user. Requests are bounded and fenced to the published runtime ID.
+  Existing choices and later user changes are preserved. No API key or provider
+  account is supplied by this preparation step.
 - The existing HTTPS proxy serves the original Orca WebUI under `/orca/`.
   Native Orca pairing remains required; the manager password is not forwarded.
   Manager cookies and upstream Set-Cookie headers are stripped at this boundary.

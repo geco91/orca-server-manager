@@ -39,6 +39,16 @@ Manager data, runtime HOME and workspaces are explicit separate mounts. Provider
 credentials and pairing state stay in runtime HOME. The manager cannot read it.
 Browser pairing uses Orca's fixed native CLI command, never direct profile reads.
 
+The runtime includes OpenCode and prepares a first host default through Orca's
+native `settings.get`/`settings.update` RPC, running as the runtime user. It reads
+only that user's protected local metadata and socket, validates the runtime ID,
+and changes only an unselected `defaultTuiAgent` to `opencode`. A private one-time
+record prevents reapplying the choice after an operator changes it. No account,
+key or task is created, and no profile database is edited directly. The manager
+observes the current native host setting; it does not equate it with provider
+authentication. WebUI agent defaults remain Orca's browser-local preference,
+so the guide includes the native **Set as default** step.
+
 An authenticated CSRF-protected POST requests browser pairing. The worker checks
 the assigned manager/runtime, deployment generation and request age, and invokes
 `orca pair --address wss://MANAGER-ORIGIN/orca --json` as the runtime user. The

@@ -76,11 +76,25 @@ from the Proxmox administrator console:
 pct exec RUNTIME_CT_ID -- /usr/sbin/runuser -u orca -- /bin/bash
 ```
 
-Run native commands there. Codex/OpenCode are installed as pinned provider-image
-extensions; installation does not mean authentication. Add accounts with
-`orca account add --agent codex` or `orca account add --agent opencode` and inspect
-`orca account list --json`. Follow Orca/provider login prompts and start your
-first real task in Orca. The manager starts no paid agent task to check a login.
+OpenCode is already included in the standard provider image and selected as the
+initial host default when no explicit agent choice exists. Existing choices are
+preserved, including after later boots. The current default is read through
+native RPC and shown in the provider checks. This does not create a provider
+account or prove authentication.
+
+In the original Orca WebUI, choose **OpenCode** in the agent picker, right-click
+it and select **Set as default**. Orca saves this preference separately for each
+browser; a host default does not silently change a client's saved preference.
+Open OpenCode in the desired workspace and use `/connect` to configure a model
+provider through OpenCode's own UI. Provider credentials follow OpenCode's
+profile scope; project configuration and environment references can supply
+workspace-specific settings. The manager never collects those keys. See the
+[native configuration documentation](https://opencode.ai/docs/config/).
+
+Codex is also installed as a pinned provider-image extension. If needed, use
+`orca account add --agent codex` and inspect `orca account list --json` from the
+runtime terminal above. Follow the native login prompts and start your first
+task in Orca. The manager starts no paid agent task to check a login.
 
 GitHub is optional. When a project needs repos, pushes or PRs, use native
 `gh auth login --hostname github.com --web`, `gh auth setup-git` and

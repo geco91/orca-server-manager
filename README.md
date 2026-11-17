@@ -36,6 +36,14 @@ desktop package; the runtime still runs the headless server, without Electron.
 Orca performs the pairing and confirms the connection. The manager login alone
 does not mean a browser is paired.
 
+OpenCode is included in the standard runtime image. On initial setup the runtime
+selects it as Orca's host default if no agent has been chosen; existing choices
+are preserved. Orca's WebUI additionally stores its default per browser: choose
+OpenCode in its agent picker and use **Set as default** once. Add model providers
+and API keys later through native OpenCode, for example `/connect` in a workspace.
+Installed/configured does not mean authenticated; the dashboard reports those
+observations separately. No provider account or key is fabricated.
+
 The pilot starts with upstream [Orca 1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261),
 the current official release when checked for this pilot. It is not classified as stable or
 approved by this project. Later versions are selected directly from Orca's
@@ -79,6 +87,8 @@ python3 scripts/export-mock.py
 ```
 
 ## Development and verification
+
+The native-settings unit checks require Node.js 20+ on the development machine.
 
 ```bash
 uv sync --frozen
