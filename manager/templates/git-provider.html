@@ -19,7 +19,7 @@
 <p class="hint" id="forge-host-hint">Enter the HTTPS address you use to sign in to your instance.</p>
 <div id="instance-links" hidden><a id="forge-keys" target="_blank" rel="noopener noreferrer">Open SSH key settings ↗</a> · <a id="forge-signup" target="_blank" rel="noopener noreferrer">Create an account ↗</a></div>
 {% endif %}
-<form method="post" action="{{ url_for('start_git',provider=provider) }}" id="forge-start">
+<form method="post" action="{{ url_for('start_git',provider=provider, setup='1' if guided else none) }}" id="forge-start">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <button{% if provider not in status.runtime.git_setup or not status.controller.available or active_operation %} disabled{% endif %}>{{ 'Prepare public SSH key' if provider == 'forgejo' else 'Get a sign-in code' }}</button>
 </form>

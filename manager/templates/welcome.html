@@ -11,7 +11,7 @@
 <p class="setup-intro">Choose where you keep your repositories. You can connect more than one account provider, or set this up later.</p>
 <div class="forge-list">
 {% for key, provider in providers.items() %}{% set observed = status.integrations[key] %}
-<a class="forge-row" href="{{ url_for('git_provider', provider=key) }}"><span><strong>{{ provider.name }}</strong><small>{{ 'Signed in as ' ~ observed.checks[0].value if observed.state == 'ready' and observed.checks else 'Sign in with a browser code' if key != 'forgejo' else 'Use an SSH key with your instance' }}</small></span><span class="forge-action">{{ 'Manage' if observed.state == 'ready' else 'Set up' }} →</span></a>
+<a class="forge-row" href="{{ url_for('git_provider', provider=key, setup='1') }}"><span><strong>{{ provider.name }}</strong><small>{{ 'Signed in as ' ~ observed.checks[0].value if observed.state == 'ready' and observed.checks else 'Sign in with a browser code' if key != 'forgejo' else 'Use an SSH key with your instance' }}</small></span><span class="forge-action">{{ 'Manage' if observed.state == 'ready' else 'Set up' }} →</span></a>
 {% endfor %}
 </div>
 <form method="post" action="{{ url_for('continue_setup') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>Continue to Orca →</button></form>
@@ -21,7 +21,7 @@
 {% include '_open_orca.html' %}
 <section class="panel setup-agent"><h2>Your default agent</h2>
 {% for row in status.integrations.providers.checks if row.name == 'Host default agent' %}<p>Server preference <strong>{{ row.value }}</strong></p>{% else %}<p>Waiting for the server’s agent preference.</p>{% endfor %}
-<p>In Orca’s agent picker, right-click <strong>OpenCode 2</strong> and choose <strong>Set as default</strong> for this browser. Add model providers later in your workspace.</p>
+{% if status.runtime.opencode_agent %}<p>To use <strong>{{ status.runtime.opencode_agent }}</strong> in this browser, right-click it in Orca’s agent picker and choose <strong>Set as default</strong>. Add model providers later in your workspace.</p>{% else %}<p>Choose your browser’s default in Orca’s agent picker. The server has not reported an installed OpenCode version yet.</p>{% endif %}
 <a href="{{ url_for('connection', name='providers') }}">Agent settings &amp; status</a></section>
 <form method="post" action="{{ url_for('finish_setup') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="quiet">Finish setup &amp; go to overview →</button></form>
 {% endif %}

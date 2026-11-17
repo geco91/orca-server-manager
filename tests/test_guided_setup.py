@@ -37,7 +37,7 @@ def test_first_run_resumes_and_can_finish_without_a_git_account(tmp_path):
     bootstrap(app, client)
     html = get(client, "/").text
     assert "Connect your Git accounts" in html and 'id="main-nav"' not in html
-    assert all(f'href="/git/{p}"' in html for p in ["github", "gitlab", "forgejo"])
+    assert all(f'href="/git/{p}?setup=1"' in html for p in ["github", "gitlab", "forgejo"])
     assert post(client, "/welcome/continue", {}).status_code == 400
     assert post(client, "/welcome/continue", {"csrf_token": csrf(client, "/")}).status_code == 303
     resumed = create_app(app.config.copy()).test_client()
@@ -283,3 +283,30 @@ def test_corrupt_pending_native_login_does_not_block_the_worker(tmp_path):
     forge.poll(SimpleNamespace(private=tmp_path))
     assert (directory / "gitlab.invalid").is_file()
     assert not (directory / "gitlab.json").exists()
+
+
+def test_revisiting_git_setup_keeps_the_return_to_orca_after_requesting_a_code(tmp_path):
+    app, _ = manager_fixture(tmp_path)
+    client = app.test_client()
+    bootstrap(app, client)
+    assert post(client, "/welcome/finish", {"csrf_token": csrf(client, "/")}).status_code == 303
+    assert "Continue to Orca" not in get(client, "/git/github").text
+    path = "/git/github?setup=1"
+    assert "Continue to Orca" in get(client, path).text
+    reply = post(client, "/git/github/start?setup=1", {"csrf_token": csrf(client, path)})
+    assert reply.status_code == 303 and reply.location == path
+    assert "Continue to Orca" in get(client, reply.location).text
+    assert "Your Orca workspace" in get(client, "/").text
+
+
+def test_old_image_guides_show_its_installed_agent_after_a_rollback(tmp_path):
+    app, control = manager_fixture(tmp_path)
+    client = app.test_client()
+    bootstrap(app, client)
+    snapshot = read_document(control / "status.json")
+    snapshot["runtime"]["opencode_version"] = "1.19.5"
+    atomic_document(control / "status.json", snapshot)
+    assert "To use <strong>OpenCode</strong>" in get(client, "/welcome?step=launch").text
+    snapshot["runtime"]["opencode_version"] = None
+    atomic_document(control / "status.json", snapshot)
+    assert "has not reported an installed OpenCode" in get(client, "/welcome?step=launch").text

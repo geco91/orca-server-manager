@@ -59,7 +59,7 @@ def register(app, connect, controller, current_status, active_operation, render_
             "git-provider.html",
             provider=provider,
             spec=PROVIDERS[provider],
-            guided=stage() != "complete",
+            guided=request.args.get("setup") == "1" or stage() != "complete",
             status=current_status(),
             job_id=job_id,
             error=error,
@@ -119,7 +119,14 @@ def register(app, connect, controller, current_status, active_operation, render_
                     "INSERT INTO git_attempts VALUES(?,?,?,?)",
                     (job["id"], provider, current_owner, time.time()),
                 )
-        return redirect(url_for("git_provider", provider=provider), code=303)
+        return redirect(
+            url_for(
+                "git_provider",
+                provider=provider,
+                setup="1" if request.args.get("setup") == "1" else None,
+            ),
+            code=303,
+        )
 
     @app.get("/api/git/<provider>/<job_id>")
     @login_required

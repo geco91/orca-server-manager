@@ -225,6 +225,7 @@ def create_app(test_config=None):
         connected = snapshot["controller"]["available"]
         raw_runtime = snapshot.get("runtime", {}) if connected else {}
         reachable = raw_runtime.get("reachable") is True
+        opencode = str(raw_runtime.get("opencode_version") or "Unknown")[:80]
         runtime = {
             "state": "reachable" if reachable else "error" if connected else "unknown",
             "label": "Runtime reachable"
@@ -238,7 +239,8 @@ def create_app(test_config=None):
             if connected
             else snapshot["controller"]["detail"],
             "version": str(raw_runtime.get("version") or "Unknown")[:80],
-            "opencode_version": str(raw_runtime.get("opencode_version") or "Unknown")[:80],
+            "opencode_version": opencode,
+            "opencode_agent": {"1": "OpenCode", "2": "OpenCode 2"}.get(opencode.split(".", 1)[0]),
             "active_terminals": raw_runtime.get("active_terminals"),
             "web_url": public_web_url(raw_runtime.get("web_url")),
             "git_setup": [p for p in PROVIDERS if p in (raw_runtime.get("git_setup") or [])],

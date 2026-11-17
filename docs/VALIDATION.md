@@ -139,7 +139,8 @@ user-selected versions. Versions and labels still come directly from Orca.
 
 ## Guided setup and OpenCode 2
 
-The 172-test suite covers guided setup persistence, session-scoped Git
+The 174-test suite covers guided setup persistence, revisiting sign-in after
+completion, agent instructions after rollback, session-scoped Git
 authorization, native credential-helper completion, Forgejo key reuse,
 migration of manager-selected agent preferences, and the update guard when the
 managed version is unobservable. The standard runtime launches the official

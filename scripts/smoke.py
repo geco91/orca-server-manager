@@ -148,7 +148,7 @@ def main():
             )
             assert "Connect your Git accounts" in html and "Versions &amp; updates" not in html
             html = post("/welcome/continue", {"csrf_token": csrf("/")})
-            assert "Open Orca WebUI" in html and "OpenCode 2" in html
+            assert "Open Orca WebUI" in html and "has not reported an installed OpenCode" in html
             html = post("/welcome/finish", {"csrf_token": csrf("/welcome")})
             assert "Your Orca workspace" in html
             status = json.loads(page("/api/status"))
@@ -174,6 +174,7 @@ def main():
             from pairing_smoke import check_pairing
 
             check_pairing(compose, native, origin, page, post, csrf, password)
+            assert "OpenCode 2" in page("/welcome?step=launch")
             provider_checks = {
                 row["name"]: row["value"] for row in native["integrations"]["providers"]["checks"]
             }
