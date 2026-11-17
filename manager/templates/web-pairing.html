@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">FIRST CONNECTION</span><h1>Connect this browser to Orca.</h1><p>The manager requests Orca's native pairing link for this server. The WebUI then connects automatically.</p></div></div>
+<section class="panel" id="web-pairing"{% if job_id %} data-status-url="{{ url_for('web_pairing_data', job_id=job_id) }}" data-auto-open="{{ 'true' if automatic else 'false' }}"{% endif %}>
+{% if error %}<p class="notice warn" role="alert">{{ error }}</p>{% endif %}
+<p id="pairing-status" role="status" aria-live="polite">{% if job_id %}Preparing your private connection link…{% else %}Open the WebUI with a prepared connection. You do not need to find a pairing code in a terminal.{% endif %}</p>
+{% if not status.controller.available %}<p class="notice neutral">The deployment worker must be available to prepare browser pairing. Refresh the server status and try again.</p>{% endif %}
+<div id="pairing-ready" hidden>
+<div class="button-row"><a id="pairing-open" class="button" target="_blank" rel="noopener noreferrer">Open and connect Orca WebUI ↗</a></div>
+<h2>Manual fallback</h2><p>If Orca still shows “Connect to Orca”, paste this pairing URL into its <strong>Pairing URL or code</strong> field and choose <strong>Connect</strong>. If Orca asks to replace a saved server, confirm only if you want to use this server in this browser.</p>
+<label for="pairing-url">Pairing URL</label><textarea id="pairing-url" rows="3" readonly spellcheck="false" autocomplete="off"></textarea>
+<button type="button" class="quiet" data-copy="pairing-url">Copy pairing URL</button>
+<details><summary>Copy only the pairing code</summary><label for="pairing-code">Pairing code</label><textarea id="pairing-code" rows="3" readonly spellcheck="false" autocomplete="off"></textarea><button type="button" class="quiet" data-copy="pairing-code">Copy code</button></details>
+<p class="hint">This private link grants access to your Orca server. Its copy here is available for two minutes. Request another link if it has expired or was already used.</p>
+</div>
+<div class="button-row"><form method="post" action="{{ url_for('prepare_web_pairing') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="open" value="0"><button{% if not status.controller.available or not status.runtime.web_url or active_operation %} disabled{% endif %}>Prepare pairing link</button></form><a href="{{ url_for('overview') }}">Back to overview</a></div>
+<p class="hint">Pairing an open page does not stop Orca or disconnect its existing clients. No agent task is started.</p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='web-pairing.js') }}" defer></script>{% endblock %}

@@ -25,7 +25,8 @@ class PVE:
     def __call__(self, args, **_):
         self.commands.append(args)
         if args[:2] == ["pct", "config"]:
-            return "description: OSM:pilot:runtime\n" if self.owned else "description: unrelated\n"
+            role = "manager" if args[2] == "202" else "runtime"
+            return f"description: OSM:pilot:{role}\n" if self.owned else "description: unrelated\n"
         if args[:2] == ["qm", "config"]:
             return "description: unrelated builder\n"
         if args[:2] == ["pvesh", "get"]:
@@ -40,6 +41,7 @@ class PVE:
                         "reachable": True,
                         "version": "1.4.261",
                         "active_terminals": self.terminals,
+                        "web_url": "http://192.168.50.25:6768/web-index.html",
                     },
                     "integrations": {},
                 }
@@ -373,3 +375,51 @@ def test_worker_rejects_downgrades_and_reinstalls_even_if_a_request_bypasses_the
         args[:2] in [["pct", "create"], ["pct", "shutdown"], ["pct", "start"]]
         for args in pve.commands
     )
+
+
+def test_worker_prepares_native_pairing_without_stopping_work_or_publishing_secrets(
+    deployment, monkeypatch
+):
+    from tests.test_pairing import CODE, ORIGIN, native_response
+
+    worker, pve = deployment
+    pve.terminals = 1
+    calls, private = [], []
+    command = worker.run
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return json.dumps(native_response()) if "pair" in args else command(args, **kwargs)
+
+    worker.run = run
+    monkeypatch.setattr("deploy.proxmox.worker.read_manager_origin", lambda _: ORIGIN)
+    monkeypatch.setattr(
+        "deploy.proxmox.worker.publish_pairing", lambda directory, payload: private.append(payload)
+    )
+    request = job("pair_web")
+    worker.execute(request)
+    assert outcome(worker, request) == "completed" and private[0]["code"] == CODE
+    assert CODE not in (worker.results / (request["id"] + ".json")).read_text()
+    assert CODE not in json.dumps(worker.publish_status())
+    assert any("pair" in args and "wss://localhost/orca" in args for args in calls)
+    assert not any(args[:2] in [["pct", "shutdown"], ["pct", "create"]] for args in calls)
+    assert pve.running[201]
+
+
+def test_expired_browser_request_does_not_create_an_unused_native_offer(deployment):
+    from datetime import UTC, datetime, timedelta
+
+    worker, pve = deployment
+    request = job("pair_web") | {
+        "created_at": (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
+    }
+    worker.execute(request)
+    assert outcome(worker, request) == "failed"
+    assert not any("pair" in args for args in pve.commands)
+
+
+def test_web_pairing_cannot_smuggle_another_origin_or_a_shell_command():
+    value = job("pair_web")
+    assert validate_request(value, value["id"])["action"] == "pair_web"
+    with pytest.raises(DeploymentError):
+        validate_request(value | {"origin": "https://external.invalid"}, value["id"])

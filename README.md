@@ -27,10 +27,14 @@ For first-time administrator setup, copy the code from the **manager container â
 Summary â†’ Notes** in Proxmox and enter it on the English HTTPS setup page. The
 host worker publishes the one-time code there and removes its copy after setup.
 
-The overview links to Orca's original WebUI in a new tab through the manager's
-HTTPS endpoint. Its browser files come from the matching checksummed upstream
+Choose **Open and connect Orca WebUI** in the overview. The manager requests
+Orca's native browser-pairing link and opens the original WebUI in a new tab
+through its HTTPS endpoint. **Pairing details & manual fallback** provides the
+actual URL/code and instructions if needed; no terminal lookup is required.
+Its browser files come from the matching checksummed upstream
 desktop package; the runtime still runs the headless server, without Electron.
-Browser access uses Orca's native pairing.
+Orca performs the pairing and confirms the connection. The manager login alone
+does not mean a browser is paired.
 
 The pilot starts with upstream [Orca 1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261),
 the current official release when checked for this pilot. It is not classified as stable or
@@ -83,6 +87,8 @@ uv run ruff format --check manager tests scripts deploy/proxmox container/manage
 uv run pytest -q
 bash scripts/build.sh
 python3 scripts/smoke.py
+# Optional real browser check (Playwright and Chromium installed separately):
+OSM_BROWSER_QA=1 OSM_CHROMIUM=/usr/bin/chromium python3 scripts/smoke.py
 ```
 
 In managed Cloud, preserve the provided proxy and trust configuration. Pass the
@@ -93,7 +99,9 @@ services. No CA private key or credential belongs in an image.
 
 The disposable smoke test checks verified HTTPS, English setup, secure sessions,
 CSRF, real native Orca RPC, installed provider CLIs, MCP health and persistence
-after container recreation. It dispatches no agent and claims no Proxmox or
+after container recreation. Its pairing fixture runs the real native Orca CLI;
+the optional Chromium check also connects and reloads the original WebUI.
+It dispatches no agent and claims no Proxmox or
 external-tunnel validation. Worker tests simulate PVE commands and exercise real
 filesystem backup and restore separately. The separately authorized native PVE
 trial also exercised OCI import/start and both rollback policies; its evidence

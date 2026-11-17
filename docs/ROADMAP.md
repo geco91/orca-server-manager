@@ -6,7 +6,7 @@ Updated 17 November 2026. See [original brief](PROJECT_BRIEF.md) and the
 | Area | Implemented and observed | Remaining checks |
 | --- | --- | --- |
 | Runtime | Official 1.4.261 server bundle/checksums, UID 1000, native PVE OCI import/start, RPC and graceful replacement | User workload behavior and other architectures |
-| Manager | English default, HTTPS, setup code in Proxmox Notes, 8-character password minimum, original Orca WebUI links opening in new tabs, sessions/CSRF and responsive guides/status | Native browser pairing and operator usability feedback |
+| Manager | English default, HTTPS, setup code in Proxmox Notes, 8-character password minimum, prepared native browser pairing in new tabs, private URL/code fallback, sessions/CSRF and responsive guides/status | Operator usability feedback |
 | Native integrations | Pinned Codex/OpenCode CLIs execute; account/GitHub probes; optional native setup guides | Actual sign-in, first user-started agent task, repository access and Mac/mobile pairing |
 | Versions | Official release pages and labels, upgrades only, SemVer ordering, downgrade guards in UI/controller/worker, saved rollback when available | Availability of packages for other user-selected upgrades |
 | Update/rollback | Real native version changes, software-only rollback retaining newer data, full rollback restoring saved data; generation fences and interruption handling | Recovery under further host/storage failure scenarios and operator experience |

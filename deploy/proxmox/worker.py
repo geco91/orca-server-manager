@@ -14,13 +14,16 @@ import subprocess
 import sys
 import time
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from deploy.proxmox.notes import SetupNotesError, sync_setup_notes
+from deploy.proxmox.pairing import prune_pairings, publish_pairing, read_manager_origin
 from manager.control import JOB_ID, ControlError, atomic_document, read_document, utc_now
+from manager.pairing import PAIRING_TTL, PairingError, native_pairing
 from manager.releases import require_upgrade, resolve_release, validate_version
 
 
@@ -91,7 +94,7 @@ def validate_request(document, name):
         raise DeploymentError("Unsupported request schema.")
     if document.get("id") != name or not JOB_ID.fullmatch(name):
         raise DeploymentError("Invalid operation identity.")
-    if document.get("action") not in {"refresh", "update", "rollback"}:
+    if document.get("action") not in {"refresh", "update", "rollback", "pair_web"}:
         raise DeploymentError("Unsupported operation.")
     if document["action"] == "update":
         validate_version(document.get("version"))
@@ -578,6 +581,8 @@ class Worker:
                     "completed",
                     "The native runtime status was read. No account or device was connected.",
                 )
+            elif job["action"] == "pair_web":
+                self.pair_web(job)
             elif job["action"] == "update":
                 self.update(job)
             else:
@@ -593,6 +598,10 @@ class Worker:
             self.publish_status()
 
     def tick(self):
+        try:
+            prune_pairings(self.control)
+        except PairingError as error:
+            print(str(error), file=sys.stderr)
         try:
             sync_setup_notes(self.cfg)
         except SetupNotesError as error:
@@ -627,6 +636,49 @@ class Worker:
                 # Invalid requests never reach native commands; keep the original for inspection.
                 pass
             destination.rename(destination.with_suffix(".done"))
+
+    def pair_web(self, job):
+        try:
+            created = datetime.fromisoformat(job["created_at"])
+        except (ValueError, TypeError):
+            raise DeploymentError("Invalid pairing request timestamp.") from None
+        if created.tzinfo is None or not -5 <= time.time() - created.timestamp() <= PAIRING_TTL:
+            raise DeploymentError(
+                "This pairing request expired. Open the WebUI again to prepare another link."
+            )
+        self.own_container(self.cfg["manager_id"], role="manager")
+        observed = self.probe().get("runtime", {})
+        if observed.get("reachable") is not True or not observed.get("web_url"):
+            raise DeploymentError(
+                "The Orca WebUI is not reachable yet. Refresh the status and try again."
+            )
+        origin = read_manager_origin(self.data)
+        self.result(job, "running", "Requesting this server's native browser pairing link.")
+        raw = self.run(
+            [
+                "pct",
+                "exec",
+                str(self.cfg["runtime_id"]),
+                "--",
+                "/usr/sbin/runuser",
+                "-u",
+                "orca",
+                "--",
+                "/usr/local/bin/orca",
+                "pair",
+                "--address",
+                origin.replace("https://", "wss://", 1) + "/orca",
+                "--json",
+            ],
+            timeout=30,
+        )
+        payload = native_pairing(raw, origin, job["id"], self.cfg["generation"])
+        publish_pairing(self.control, payload)
+        self.result(
+            job,
+            "completed",
+            "The private native pairing link is ready. Open the WebUI to connect this browser.",
+        )
 
 
 def main():

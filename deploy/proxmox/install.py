@@ -129,7 +129,9 @@ def apply(cfg, source_config, archive_dir, resume=False):
         ROOT,
         ROOT / "deploy/proxmox/worker.py",
         ROOT / "deploy/proxmox/notes.py",
+        ROOT / "deploy/proxmox/pairing.py",
         ROOT / "manager/control.py",
+        ROOT / "manager/pairing.py",
         ROOT / "manager/releases.py",
     ]:
         if path.is_symlink() or path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
