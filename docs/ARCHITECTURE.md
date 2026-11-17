@@ -19,7 +19,7 @@ flowchart LR
 ## Boundaries
 
 The manager has no shell, agent-dispatch or general Proxmox API endpoint. Its
-unprivileged Flask process writes only `refresh`, `update`, `rollback` or `pair_web` requests
+unprivileged Flask process writes only `refresh`, `update`, `update_opencode`, `rollback` or `pair_web` requests
 with a fixed schema. The root-owned parent of the queue prevents replacing the
 status/results paths. The host worker claims requests into a private directory,
 rejects links, non-regular or oversized files, validates every field and checks
@@ -101,6 +101,14 @@ The release selector offers upgrades only, using numeric version and SemVer
 pre-release ordering. Cached metadata is filtered against the current installed
 version on every view. Both the queue controller and host worker reject equal or
 older versions. Older software is available only through a saved rollback point.
+
+OpenCode metadata comes independently from [its official releases](https://github.com/anomalyco/opencode/releases).
+The fixed `update_opencode` action selects only the provider version, preserving
+Orca; an Orca update preserves the observed OpenCode version. The package SHA-256
+and version are included in the private image manifest and checked by the host
+before import. Both catalogs share the operation lock, downgrade guards and data
+return process. An unknown installed provider version blocks a change; startup
+success requires native RPC and both selected version numbers.
 
 A version change builds and creates the stopped replacement first. It checks
 live terminal activity again, gracefully stops the old runtime, copies the

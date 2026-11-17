@@ -9,6 +9,8 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from manager.opencode_releases import require_upgrade as require_opencode_upgrade
+from manager.opencode_releases import validate_version as validate_opencode
 from manager.pairing import validate_pairing
 from manager.releases import require_upgrade, validate_version
 
@@ -107,9 +109,11 @@ class Controller:
             }
 
     def submit(self, action, version=None, restore_data=False):
-        if action not in {"refresh", "update", "rollback", "pair_web"}:
+        if action not in {"refresh", "update", "update_opencode", "rollback", "pair_web"}:
             raise ControlError("Unsupported deployment action.")
-        if action == "update":
+        if action == "update_opencode":
+            validate_opencode(version)
+        elif action == "update":
             validate_version(version)
         elif version is not None:
             raise ControlError("This action does not take a version.")
@@ -130,6 +134,8 @@ class Controller:
             )
         if action == "update":
             require_upgrade(version, deployment.get("version"))
+        if action == "update_opencode":
+            require_opencode_upgrade(version, snapshot.get("runtime", {}).get("opencode_version"))
         if action == "rollback" and not deployment.get("previous_version"):
             raise ControlError("There is no saved previous version to roll back to.")
         job_id = secrets.token_hex(16)

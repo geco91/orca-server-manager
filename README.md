@@ -52,9 +52,16 @@ requirements. The manager maintains no release approval list.
 Only newer versions are offered as upgrades; older software is accessible through
 an existing saved rollback point.
 
+OpenCode has its own official upgrade list on **Versions & updates**, with labels
+and checksums from [anomalyco/opencode](https://github.com/anomalyco/opencode/releases).
+An OpenCode upgrade keeps the installed Orca version; an Orca upgrade keeps the
+selected OpenCode version. Both use the same image replacement, consistent data
+backup and saved rollback point showing both software versions. Neither catalog
+is a manager-maintained approval list.
+
 ```bash
 # On the dedicated builder, from a clean checkout of the intended commit:
-python3 scripts/build-oci.py --version 1.4.261 --manager --output /srv/orca-oci
+python3 scripts/build-oci.py --version 1.4.261 --opencode-version 1.19.5 --manager --output /srv/orca-oci
 # Creates private OCI archives and a source/checksum manifest. Does not publish.
 ```
 

@@ -43,6 +43,9 @@ coordinator. Containers are not a multi-tenant isolation boundary.
 - Administrator passwords accept 8–256 characters and remain scrypt-hashed.
   Release selection and both deployment layers reject downgrades/reinstalls;
   older software is accessible only through an existing saved rollback point.
+  This applies independently to Orca and OpenCode. Provider update requests cannot
+  choose an Orca version or arbitrary package URL. Official package hashes and
+  both software versions must match the private image manifest before import.
 - TLS and official package checksums remain enabled. Builds may mount the Cloud
   CA bundle as a secret; no private CA key belongs in an image.
 - A rollback with data restore discards newer active HOME/workspace contents.

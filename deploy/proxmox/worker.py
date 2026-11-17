@@ -23,6 +23,10 @@ sys.path.insert(0, str(ROOT))
 from deploy.proxmox.notes import SetupNotesError, sync_setup_notes
 from deploy.proxmox.pairing import prune_pairings, publish_pairing, read_manager_origin
 from manager.control import JOB_ID, ControlError, atomic_document, read_document, utc_now
+from manager.opencode_releases import DEFAULT_VERSION as DEFAULT_OPENCODE_VERSION
+from manager.opencode_releases import require_upgrade as require_opencode_upgrade
+from manager.opencode_releases import resolve_release as resolve_opencode
+from manager.opencode_releases import validate_version as validate_opencode
 from manager.pairing import PAIRING_TTL, PairingError, native_pairing
 from manager.releases import require_upgrade, resolve_release, validate_version
 
@@ -79,6 +83,7 @@ def load_config(path):
     if not re.fullmatch(r"[a-f0-9]{40}", cfg.get("source_commit", "")):
         raise DeploymentError("Pin the manager source commit.")
     validate_version(cfg.get("version"))
+    validate_opencode(cfg.setdefault("opencode_version", DEFAULT_OPENCODE_VERSION))
     ssh_config = Path(cfg.get("ssh_config", ""))
     if not ssh_config.is_absolute():
         raise DeploymentError("Use an explicit, private SSH configuration.")
@@ -94,9 +99,17 @@ def validate_request(document, name):
         raise DeploymentError("Unsupported request schema.")
     if document.get("id") != name or not JOB_ID.fullmatch(name):
         raise DeploymentError("Invalid operation identity.")
-    if document.get("action") not in {"refresh", "update", "rollback", "pair_web"}:
+    if document.get("action") not in {
+        "refresh",
+        "update",
+        "update_opencode",
+        "rollback",
+        "pair_web",
+    }:
         raise DeploymentError("Unsupported operation.")
-    if document["action"] == "update":
+    if document["action"] == "update_opencode":
+        validate_opencode(document.get("version"))
+    elif document["action"] == "update":
         validate_version(document.get("version"))
     elif document.get("version") is not None:
         raise DeploymentError("Only update requests may specify a version.")
@@ -112,6 +125,7 @@ def validate_request(document, name):
 class Worker:
     def __init__(self, cfg, config_path, command=run):
         self.cfg, self.config_path, self.run = cfg, config_path, command
+        self.cfg.setdefault("opencode_version", DEFAULT_OPENCODE_VERSION)
         self.base, self.data = Path(cfg["base"]), Path(cfg["data"])
         self.control, self.private = self.data / "control", self.data / "private"
         self.requests, self.results = self.control / "requests", self.control / "results"
@@ -171,6 +185,7 @@ class Worker:
                 "runtime": {
                     "reachable": False,
                     "version": self.cfg["version"],
+                    "opencode_version": self.cfg["opencode_version"],
                     "active_terminals": 0,
                 },
                 "integrations": {},
@@ -195,6 +210,37 @@ class Worker:
         result = json.loads(raw)
         if not isinstance(result, dict) or result.get("schema") != 1:
             raise DeploymentError("Unexpected runtime observation.")
+        runtime = result.get("runtime", {})
+        if not isinstance(runtime, dict):
+            raise DeploymentError("Unexpected runtime observation.")
+        try:
+            validate_opencode(runtime.get("opencode_version"))
+        except ValueError:
+            try:
+                version = (
+                    self.run(
+                        [
+                            "pct",
+                            "exec",
+                            str(vmid),
+                            "--",
+                            "/usr/sbin/runuser",
+                            "-u",
+                            "orca",
+                            "--",
+                            "/usr/bin/env",
+                            "--chdir=/workspaces",
+                            "/usr/local/bin/opencode",
+                            "--version",
+                        ],
+                        timeout=10,
+                    )
+                    .strip()
+                    .removeprefix("v")
+                )
+                runtime["opencode_version"] = validate_opencode(version)
+            except (ValueError, OSError, subprocess.TimeoutExpired):
+                runtime["opencode_version"] = None
         return result
 
     def publish_status(self):
@@ -218,8 +264,10 @@ class Worker:
             "deployment": {
                 "runtime_id": self.cfg["runtime_id"],
                 "version": self.cfg["version"],
+                "opencode_version": self.cfg["opencode_version"],
                 "generation": self.cfg.get("generation", 0),
                 "previous_version": previous.get("version"),
+                "previous_opencode_version": previous.get("opencode_version"),
                 "backup_at": previous.get("backup_at"),
             },
         }
@@ -237,9 +285,11 @@ class Worker:
             raise DeploymentError(
                 "Close running terminal sessions in Orca before changing the container."
             )
+        return observed
 
-    def build(self, version):
+    def build(self, version, opencode_version):
         release = resolve_release(version)
+        opencode = resolve_opencode(opencode_version)
         self.own_builder()
         alias = self.cfg["builder_alias"]
         checkout, output = self.cfg["builder_checkout"], self.cfg["builder_output"]
@@ -277,6 +327,8 @@ class Worker:
                         checkout + "/scripts/build-oci.py",
                         "--version",
                         version,
+                        "--opencode-version",
+                        opencode_version,
                         "--output",
                         output,
                     ]
@@ -312,6 +364,11 @@ class Worker:
             or metadata.get("upstream_web_sha256") != release["web_sha256"]
         ):
             raise DeploymentError("The built version differs from the selected official release.")
+        if (
+            metadata.get("opencode_version") != opencode_version
+            or metadata.get("opencode_sha256") != opencode["sha256"]
+        ):
+            raise DeploymentError("The built OpenCode package differs from the selected release.")
         archive = self.cache / f"orca-runtime-{version}.oci.tar"
         source_archive = output + f"/orca-runtime-{version}.oci.tar"
         self.run(
@@ -436,11 +493,16 @@ class Worker:
         self.cfg["pending"]["phase"] = "rollback-interrupted"
         self.save()
 
-    def wait_start(self):
-        deadline = time.monotonic() + 120
+    def wait_start(self, timeout=120):
+        deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             observed = self.publish_status()
-            if observed["runtime"].get("reachable") is True:
+            runtime = observed["runtime"]
+            if (
+                runtime.get("reachable") is True
+                and runtime.get("version") == self.cfg["version"]
+                and runtime.get("opencode_version") == self.cfg["opencode_version"]
+            ):
                 return True
             time.sleep(3)
         return False
@@ -448,17 +510,28 @@ class Worker:
     def update(self, job):
         if self.cfg.get("pending"):
             raise DeploymentError("An interrupted change needs recovery before another update.")
-        version = job["version"]
-        require_upgrade(version, self.cfg["version"])
-        self.idle_runtime()
+        provider_update = job["action"] == "update_opencode"
+        version = self.cfg["version"] if provider_update else job["version"]
+        if not provider_update:
+            require_upgrade(version, self.cfg["version"])
+        observed = self.idle_runtime()
+        old_opencode = observed.get("opencode_version")
+        validate_opencode(old_opencode)
+        opencode_version = job["version"] if provider_update else old_opencode
+        if provider_update:
+            require_opencode_upgrade(opencode_version, old_opencode)
         self.result(job, "running", "Preparing the selected official release.", "Prepare OCI image")
-        archive = self.build(version)
+        archive = self.build(version, opencode_version)
         self.result(job, "running", "Creating the replacement container.", "Prepare OCI container")
         candidate = self.candidate(archive)
         old_id, old_version = self.cfg["runtime_id"], self.cfg["version"]
         self.cfg["pending"] = {"job": job["id"], "candidate": candidate, "phase": "prepared"}
         self.save()
-        self.idle_runtime()  # Work may have started while the image was building.
+        current = self.idle_runtime()
+        if current.get("opencode_version") != old_opencode:
+            raise DeploymentError(
+                "OpenCode changed during image preparation. Refresh and choose again."
+            )
         self.result(
             job, "running", "Stopping Orca and preserving its data.", "Save consistent return point"
         )
@@ -466,12 +539,12 @@ class Worker:
         try:
             backup = self.backup(job)
         except (DeploymentError, OSError, subprocess.TimeoutExpired):
-            # The old software/data are still selected; bring them back if saving fails.
             self.run(["pct", "start", str(old_id)], timeout=90)
             raise
         previous = {
             "id": old_id,
             "version": old_version,
+            "opencode_version": old_opencode,
             "backup": str(backup),
             "backup_at": utc_now(),
         }
@@ -482,6 +555,7 @@ class Worker:
             previous=previous,
             runtime_id=candidate,
             version=version,
+            opencode_version=opencode_version,
             generation=self.cfg.get("generation", 0) + 1,
             pending={"job": job["id"], "candidate": candidate, "phase": "starting"},
         )
@@ -497,7 +571,7 @@ class Worker:
             "completed" if started else "failed",
             "The selected version is running. Try it yourself in Orca."
             if started
-            else "The new runtime is not reachable. The previous container and its data backup remain available.",
+            else "The selected software could not be confirmed. The previous container and its data backup remain available.",
             "Runtime state observed",
         )
 
@@ -542,6 +616,7 @@ class Worker:
         self.cfg.update(
             runtime_id=previous["id"],
             version=previous["version"],
+            opencode_version=previous.get("opencode_version", DEFAULT_OPENCODE_VERSION),
             generation=self.cfg.get("generation", 0) + 1,
         )
         self.cfg.setdefault("retained_containers", []).append(current_id)
@@ -583,7 +658,7 @@ class Worker:
                 )
             elif job["action"] == "pair_web":
                 self.pair_web(job)
-            elif job["action"] == "update":
+            elif job["action"] in {"update", "update_opencode"}:
                 self.update(job)
             else:
                 self.rollback(job)

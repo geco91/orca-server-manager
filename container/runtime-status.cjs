@@ -36,6 +36,9 @@ const completeCensus = terminals?.ok === true && terminalResult?.truncated === f
 const activeTerminals = completeCensus && Array.isArray(terminalRows) ? terminalRows.length : null;
 const accounts = reachable ? cli(['account','list','--json']) : null;
 const hasCodex = installed('codex'), hasOpenCode = installed('opencode');
+const opencodeResult = hasOpenCode ? run('opencode',['--version']) : null;
+const opencodeOutput = opencodeResult?.status === 0 ? opencodeResult.stdout?.trim() || '' : '';
+const opencodeVersion = /^v?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]{0,60})?)$/.exec(opencodeOutput)?.[1] || null;
 const codexAuth = hasCodex ? run('codex',['login','status']).status === 0 : false;
 const accountResult = accounts?.result || {};
 function accountCount(key) {
@@ -49,6 +52,7 @@ const providers = {
   checks:[
     {name:'Codex CLI',value:hasCodex?'Installed':'Not installed'},
     {name:'OpenCode CLI',value:hasOpenCode?'Installed':'Not installed'},
+    {name:'OpenCode version',value:opencodeVersion || 'Not observable'},
     {name:'Managed Codex accounts',value:String(accountCount('codex') ?? 'Not observable')},
     {name:'Managed OpenCode accounts',value:String(accountCount('opencode') ?? 'Not observable')},
     {name:'Native Codex login',value:codexAuth?'Present according to Codex CLI':'Not confirmed'},
@@ -91,7 +95,7 @@ async function publish() {
   const agentNames={opencode:'OpenCode',opencode2:'OpenCode 2',codex:'Codex',claude:'Claude',blank:'Blank terminal'};
   providers.checks.push({name:'Host default agent',value:Object.hasOwn(agentNames,hostDefault)?agentNames[hostDefault]:typeof hostDefault==='string'?'Another native agent selected':'Not selected or not observable'},
     {name:'OpenCode provider access',value:'Not tested by this status check'});
-  console.log(JSON.stringify({schema:1,runtime:{reachable,version,active_terminals:activeTerminals,web_url:webUrl},
+  console.log(JSON.stringify({schema:1,runtime:{reachable,version,opencode_version:opencodeVersion,active_terminals:activeTerminals,web_url:webUrl},
     integrations:{providers,github,desktop:clients,mobile:clients,mcp:bridge,tunnel}}));
 }
 publish().catch(()=>{console.error('The native status observation could not complete.');process.exitCode=1;});

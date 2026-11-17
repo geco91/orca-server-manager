@@ -38,14 +38,17 @@ builder, then build from a clean tree:
 
 ```bash
 bash deploy/proxmox/prepare-debian.sh --apply
-python3 scripts/build-oci.py --version 1.4.261 --manager --output /srv/orca-oci
+python3 scripts/build-oci.py --version 1.4.261 --opencode-version 1.19.5 --manager --output /srv/orca-oci
 ```
 
 Output: `orca-runtime-1.4.261.oci.tar`, `orca-manager-0.2.0.oci.tar` and
 `manifest-1.4.261.json`. Transfer these privately through the existing SSH/SCP
 connection. The worker rejects a different/dirty manager source or mismatched
 upstream/OCI checksum. No registry push, GitHub account pairing or public image
-is required. An output lock prevents overlapping builds.
+is required. An output lock prevents overlapping builds. The manifest records
+both `orca_version` and `opencode_version` plus official package digests. Match
+the configuration's `version` and `opencode_version` to those build arguments;
+the latter defaults to 1.19.5 for existing pilot configurations.
 
 ## Print the exact installation plan
 

@@ -164,6 +164,7 @@ def main():
             )
             assert native["runtime"]["reachable"] is True
             assert native["runtime"]["version"] == "1.4.261"
+            assert native["runtime"]["opencode_version"] == "1.19.5"
             assert native["runtime"]["active_terminals"] == 0
             assert native["runtime"]["web_url"].endswith(":6768/web-index.html")
             from pairing_smoke import check_pairing
