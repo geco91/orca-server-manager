@@ -1,6 +1,6 @@
 # Native Proxmox OCI pilot
 
-Prepared for x86-64 Proxmox VE 9.2.21. **Not yet installed on the test host.**
+Verified on an explicitly assigned x86-64 Proxmox VE 9.2.21 test host.
 OCI support is a Proxmox technology preview. The installed host code was checked:
 it imports OCI archives and carries image entrypoint, user, environment and stop
 signal into the CT. No direct image-layer update was verified, so updates use a
@@ -19,8 +19,9 @@ Use existing storage and bridge. Allocate unused IDs immediately before applying
 the example IDs are placeholders, not reserved resources. Keep enough RAM and
 storage for existing guests and at least one stopped replacement. The installer
 never creates the builder, allocates/formats a data disk or overwrites a guest.
-Those resources must be explicitly assigned first. No test dependencies are
-installed on the Proxmox host.
+Those resources must be explicitly assigned first. Build and application-test
+dependencies stay in the dedicated builder; the host needs only the scoped
+worker's administrative tools, Python and clean Git checkout.
 
 The assigned builder must have the description marker `OSM:pilot:builder` (use
 your configured installation name), QEMU guest agent, a private SSH alias with
@@ -82,6 +83,10 @@ still unused. It never replaces an existing CT or reinitializes an updated deplo
 The importer temporarily stages each image for mapped root UID 100000, because
 PVE extracts unprivileged OCI archives in a user namespace. Only that UID can
 read the copy; private backup/profile directories keep their original protection.
+The staging directory permits traversal without listing; each private archive
+copy is removed after the import. Native `pct create` uses a normal filesystem
+creation umask so mapped root can traverse PVE's extraction directories; other
+worker actions retain the private default umask.
 
 The queue directory is shared, but only its `requests` subdirectory is writable
 by the web process. Status/results are host-owned. Runtime HOME/workspaces and
@@ -97,12 +102,14 @@ setup guides. The exact bootstrap command and native shell commands are in
 MAC is reused across replacements. Install/trust a certificate matching your
 actual manager address. Restrict access to the intended LAN/VPN.
 
-Exercise native RPC, a provider login and first Orca task, Mac/mobile pairing,
-optional GitHub access and the separate bridge/tunnel. Then use disposable files
-to try a chosen available version and both rollback policies. The cloud tests
-are not evidence that these PVE or external-device checks have happened.
+The authorized pilot exercised native OCI import/start, RPC and local MCP,
+HTTPS bootstrap/login/CSRF, two version changes and both rollback policies with
+disposable files. It ended on Orca 1.4.261 with a fresh administrator setup and
+retained stopped replacement CTs. See [VALIDATION.md](../../docs/VALIDATION.md).
 
-Automatic approval review rejected the earlier attempt to create/start a
-persistent builder VM with proposed password access and passwordless sudo. No
-VM/CT was created. Provisioning awaits explicit approval; this preparation does
-not bypass that rejection.
+Complete a provider login and first user-started Orca task, Mac/mobile pairing,
+optional GitHub access and the separate external tunnel in their native tools.
+These are not established by the local MCP health check or by the lifecycle
+trial. Never start a retained CT alongside the active runtime: they share data
+and the runtime MAC. Keep actual host addresses and credentials in the private
+operator handoff, outside this repository.

@@ -1,26 +1,28 @@
 # Pilot scope and remaining checks
 
-Updated 16 November 2026. See [original brief](PROJECT_BRIEF.md).
+Updated 17 November 2026. See [original brief](PROJECT_BRIEF.md) and the
+[validation record](VALIDATION.md).
 
-| Area | Implemented/prepared | Still requires real pilot validation |
+| Area | Implemented and observed | Remaining checks |
 | --- | --- | --- |
-| Runtime | Official 1.4.261 server bundle, checksum and bundled Node verification, UID 1000, RPC health | Native PVE OCI import/start and signal handling |
-| Manager | English default, HTTPS, one-time administrator setup, secure sessions, CSRF, login throttling, responsive guides/status | LAN certificate trust and operator usability on the guest |
-| Native integrations | Installed pinned Codex/OpenCode CLIs; account/GitHub probes; optional native setup guides | Actual sign-in, first user-started agent task, repository access and Mac/mobile pairing |
-| Versions | Official release pages, upstream labels and version selection; no local release approval | Builder access and available packages for other user-selected versions |
-| Update/rollback | Scoped queue/worker, generation fence, graceful stop, backup, replacement, two rollback policies, interruption journal | Actual PVE version change and rollback with disposable data |
-| MCP | Existing community bridge included, private token, read-only default, real protocol/Orca health smoke | Explicit dispatch setup and external delegation |
-| Tunnel | Existing OpenAI product fixed; private binary/profile mounts and local readiness probe | Dedicated native profile and authenticated end-to-end MCP call |
-| Deployment | Private OCI export, checksum/source manifest, read-only plan, explicit native CT installer and timer | Authorization and creation of dedicated test resources |
+| Runtime | Official 1.4.261 server bundle/checksums, UID 1000, native PVE OCI import/start, RPC and graceful replacement | User workload behavior and other architectures |
+| Manager | English default, verified HTTPS, bootstrap/login, sessions, CSRF, throttling, responsive guides/status; reachable throughout native lifecycle trial | Operator's own administrator setup and usability feedback |
+| Native integrations | Pinned Codex/OpenCode CLIs execute; account/GitHub probes; optional native setup guides | Actual sign-in, first user-started agent task, repository access and Mac/mobile pairing |
+| Versions | Official release pages and upstream labels, selectable versions; private 1.4.261 and 1.4.259 builds | Availability of packages for other user-selected versions |
+| Update/rollback | Real native version changes, software-only rollback retaining newer data, full rollback restoring saved data; generation fences and interruption handling | Recovery under further host/storage failure scenarios and operator experience |
+| MCP | Existing pinned community bridge, private token, read-only default, real local initialize/tools/Orca health | Explicit dispatch setup and external delegation |
+| Tunnel | Existing OpenAI binary reused and executable in the native runtime; separate private profile mounts/probe prepared | Dedicated native profile and authenticated end-to-end external MCP call |
+| Deployment | Dedicated builder VM/data filesystem, native manager/runtime OCI CTs, private checksum/source manifests and scoped host timer | Independent data backup/restore procedure and deliberate retention cleanup |
 
-Cloud/container tests are implementation checks, not a release-approval service
-for Orca versions. The operator chooses and tries upstream versions themselves.
+The explicitly authorized test deployment is running; native image replacement
+and both return paths passed with disposable data. The temporary test account
+was removed so the operator can create their own administrator. Existing
+unrelated guests and the working SSH connector/tunnel profile were preserved.
+Private handoff records contain actual resource IDs, addresses and bootstrap
+instructions; credentials do not belong in this repository.
 
-The test Proxmox host was inspected read-only, plus a small private Debian-image
-verification record. No new VM/CT was provisioned. Automatic approval review
-rejected creation/start of a persistent builder VM with the proposed password
-access and passwordless sudo. Provisioning remains pending explicit approval;
-local preparation does not bypass that decision.
+Implementation and lifecycle checks are not a release-approval service for Orca
+versions. The operator chooses and tries upstream versions themselves.
 
 Out of the starter scope: production deployment, multi-tenant roles, public
 image publication, automatic merges, full native-chat activity enumeration,

@@ -4,11 +4,11 @@ An English-first operations dashboard for a headless Orca server. Work with agen
 projects, sessions and worktrees in **Orca**. The manager provides native setup
 guides, technical observations and an explicit version-change/rollback process.
 
-**Pilot implementation, 16 November 2026:** native Orca RPC, HTTPS administrator
-setup, official release selection, a bounded deployment queue, private OCI builds
-and a scoped Proxmox worker are implemented. The native Proxmox installation is
-prepared, **not deployed or verified on the test host yet**. Real provider logins,
-Mac/mobile pairing and the external tunnel require their native setup.
+**Native pilot verified, 17 November 2026:** the English HTTPS manager and Orca
+runtime run in unprivileged Proxmox OCI containers. Real version changes and both
+rollback modes passed with disposable data. Private builds run in a dedicated
+Debian VM. Provider logins, Mac/mobile pairing and authenticated external tunnel
+access still require their native setup. See the [validation record](docs/VALIDATION.md).
 
 ## Native Proxmox OCI pilot
 
@@ -23,8 +23,8 @@ It requires explicit unused IDs, an assigned builder, existing storage/network
 and an empty dedicated data filesystem. It never formats a disk or replaces an
 existing guest. No public image registry or user GitHub pairing is needed.
 
-The first package is upstream [Orca 1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261),
-the current official release when checked. It is not classified as stable or
+The pilot starts with upstream [Orca 1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261),
+the current official release when checked for this pilot. It is not classified as stable or
 approved by this project. Later versions are selected directly from Orca's
 release metadata; a published server package and checksum are technical build
 requirements. The manager maintains no release approval list.
@@ -84,13 +84,15 @@ The disposable smoke test checks verified HTTPS, English setup, secure sessions,
 CSRF, real native Orca RPC, installed provider CLIs, MCP health and persistence
 after container recreation. It dispatches no agent and claims no Proxmox or
 external-tunnel validation. Worker tests simulate PVE commands and exercise real
-filesystem backup and restore separately.
+filesystem backup and restore separately. The separately authorized native PVE
+trial also exercised OCI import/start and both rollback policies; its evidence
+and remaining limits are recorded in [VALIDATION.md](docs/VALIDATION.md).
 
 ## Documentation
 
 - [Architecture, decisions and upstream evidence](docs/ARCHITECTURE.md)
 - [Operation, native setup, updates and recovery](docs/OPERATIONS.md)
-- [Pilot preparation and remaining validation](docs/ROADMAP.md)
+- [Pilot scope and remaining validation](docs/ROADMAP.md)
 - [Native Proxmox installation](deploy/proxmox/README.md)
 - [Security boundary](SECURITY.md)
 - [Original user brief, unchanged](docs/PROJECT_BRIEF.md)

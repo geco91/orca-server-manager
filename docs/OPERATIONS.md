@@ -16,7 +16,7 @@ administrator password reset, use the local terminal, never an unauthenticated
 web action:
 
 ```bash
-pct exec MANAGER_CT_ID -- runuser -u manager -- /app/.venv/bin/flask \
+pct exec MANAGER_CT_ID -- /usr/sbin/runuser -u manager -- /app/.venv/bin/flask \
   --app manager.app reset-admin
 ```
 
@@ -33,7 +33,7 @@ The connection page shows the current runtime CT ID. Enter it as the Orca user
 from the Proxmox administrator console:
 
 ```bash
-pct exec RUNTIME_CT_ID -- runuser -u orca -- /bin/bash
+pct exec RUNTIME_CT_ID -- /usr/sbin/runuser -u orca -- /bin/bash
 ```
 
 Run native commands there. Codex/OpenCode are installed as pinned provider-image

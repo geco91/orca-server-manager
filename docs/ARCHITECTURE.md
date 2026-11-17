@@ -1,6 +1,6 @@
 # Architecture and evidence
 
-Updated 16 November 2026. The original mandate remains in [PROJECT_BRIEF.md](PROJECT_BRIEF.md).
+Updated 17 November 2026. The original mandate remains in [PROJECT_BRIEF.md](PROJECT_BRIEF.md).
 The UI and operational text default to English.
 
 ```mermaid
@@ -45,6 +45,10 @@ root-only private archives directly. Each import uses a temporary image copy in
 an administrator-owned directory with no listing permission, readable only by
 that mapped UID (mode 0400). The copy is removed after success or failure; the
 private profile and backup tree remain inaccessible to the extractor.
+The manager's bind-mount parent permits traversal to its UID-1000 application
+directory; TLS keys remain in a separate root-only subdirectory. Sanitized status
+files explicitly receive their intended readable mode despite the worker's
+private default umask. Native probes use absolute administrative executable paths.
 
 ## Version changes
 
@@ -96,7 +100,9 @@ Readiness uses native RPC, not an open port, PID, HTML response or exit code alo
   `PVE/LXC/Create.pm` detects OCI archives and maps Entrypoint/Cmd, User,
   WorkingDir, Env and stop signal into LXC. A direct OCI layer/image swap was
   not verified; the implementation uses controlled CT recreation. Native OCI
-  remains a Proxmox technology-preview integration, pending a real pilot.
+  remains a Proxmox technology-preview integration. The authorized native trial
+  exercised import/start and controlled replacement with both rollback policies;
+  see [VALIDATION.md](VALIDATION.md). No direct in-place image updater is assumed.
   [Proxmox container documentation](https://github.com/proxmox/pve-docs/blob/master/pct.adoc).
 
 ## MCP and tunnel
