@@ -7,5 +7,14 @@ http://:80 {
 }
 https://:443 {
     tls /data/tls/server.crt /data/tls/server.key
-    reverse_proxy 127.0.0.1:8080
+    @orca path /orca /orca/*
+    handle @orca {
+        reverse_proxy {$OSM_ORCA_UPSTREAM:127.0.0.1:9} {
+            header_up -Cookie
+            header_down -Set-Cookie
+        }
+    }
+    handle {
+        reverse_proxy 127.0.0.1:8080
+    }
 }

@@ -3,10 +3,17 @@ FROM python:3.12-slim-bookworm AS assemble
 ARG ORCA_VERSION=1.4.261
 ARG ORCA_ARCH=x64
 ARG ORCA_SHA256=fdb65eb961d3d4c1959601a51bc9bc5663b0403369ad50a422af16947ac3f3ba
+ARG ORCA_WEB_SHA256=86755b4c6e7e25d2ef4aadd5d2508bf52520d15f8ef45fa99e74cec7431e5c1c
 COPY scripts/fetch-server.py /build/fetch-server.py
+COPY scripts/fetch-web.py /build/fetch-web.py
 RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export SSL_CERT_FILE=/run/secrets/proxy_ca; fi; \
     python /build/fetch-server.py "$ORCA_VERSION" "$ORCA_ARCH" "$ORCA_SHA256" /opt/orca
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -f /run/secrets/proxy_ca ]; then export SSL_CERT_FILE=/run/secrets/proxy_ca; fi; \
+    if [ -n "$ORCA_WEB_SHA256" ]; then \
+      python /build/fetch-web.py "$ORCA_VERSION" "$ORCA_ARCH" "$ORCA_WEB_SHA256" /opt/orca/out/web; \
+    fi
 RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export SSL_CERT_FILE=/run/secrets/proxy_ca; fi; \
     python -c 'import urllib.request; urllib.request.urlretrieve("https://codeload.github.com/BuildContext/orca-mcp/tar.gz/8e355dd72d168aa81c85d8003cdfeb53821f4de1","/tmp/bridge.tar.gz")'

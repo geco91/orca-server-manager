@@ -22,6 +22,32 @@ def validate_version(value):
     return value
 
 
+def version_key(value):
+    core, separator, prerelease = validate_version(value).partition("-")
+    identifiers = (
+        tuple((0, int(part)) if part.isdigit() else (1, part) for part in prerelease.split("."))
+        if separator
+        else ()
+    )
+    return tuple(map(int, core.split("."))), not separator, identifiers
+
+
+def require_upgrade(version, installed):
+    if version_key(version) <= version_key(installed):
+        raise ReleaseError(
+            "Choose a newer Orca release. Older software is available only through a saved rollback."
+        )
+
+
+def upgrades_only(catalog, installed):
+    """Filter cached upstream metadata against the current installed version."""
+    current = version_key(installed)
+    releases = [
+        release for release in catalog["releases"] if version_key(release["version"]) > current
+    ]
+    return catalog | {"releases": releases, "has_more": bool(releases) and catalog["has_more"]}
+
+
 def read_json(url):
     req = Request(
         url,
@@ -46,6 +72,9 @@ def normalize_release(item, arch="amd64"):
     asset_name = f"orca-server-linux-{ASSET_ARCH[arch]}.tar.gz"
     asset = next((a for a in item.get("assets", []) if a.get("name") == asset_name), {})
     checksum = SHA256.fullmatch(asset.get("digest") or "")
+    web_name = f"orca-ide_{tag[1:]}_{arch}.deb"
+    web_asset = next((a for a in item.get("assets", []) if a.get("name") == web_name), {})
+    web_checksum = SHA256.fullmatch(web_asset.get("digest") or "")
     return {
         "version": tag[1:],
         "tag": tag,
@@ -56,6 +85,8 @@ def normalize_release(item, arch="amd64"):
         "server_available": bool(asset and checksum),
         "asset": asset_name if asset else None,
         "sha256": checksum[1] if checksum else None,
+        "web_asset": web_name if web_asset else None,
+        "web_sha256": web_checksum[1] if web_checksum else None,
         "download_url": (
             f"https://github.com/stablyai/orca/releases/download/{quote(tag)}/{asset_name}"
             if asset

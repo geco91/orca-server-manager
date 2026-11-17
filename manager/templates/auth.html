@@ -16,8 +16,8 @@
 </details>
 {% endif %}
 <label for="password">Administrator password</label>
-<input id="password" name="password" type="password" minlength="{{ 14 if bootstrap else 1 }}" maxlength="256" autocomplete="{{ 'new-password' if bootstrap else 'current-password' }}" required>
-{% if bootstrap %}<p class="hint">Use your own password with 14–256 characters.</p>{% endif %}
+<input id="password" name="password" type="password" minlength="{{ 8 if bootstrap else 1 }}" maxlength="256" autocomplete="{{ 'new-password' if bootstrap else 'current-password' }}" required>
+{% if bootstrap %}<p class="hint">Use your own password with 8–256 characters.</p>{% endif %}
 <button>{{ 'Create administrator' if bootstrap else 'Sign in' }}</button>
 </form>
 </section>

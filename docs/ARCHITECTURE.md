@@ -67,6 +67,11 @@ shown as technical limitations. Public metadata/downloads need no runtime GitHub
 login. The builder records the official archive digest, clean manager source
 commit and exported OCI archive digests. It does not publish images.
 
+The release selector offers upgrades only, using numeric version and SemVer
+pre-release ordering. Cached metadata is filtered against the current installed
+version on every view. Both the queue controller and host worker reject equal or
+older versions. Older software is available only through a saved rollback point.
+
 A version change builds and creates the stopped replacement first. It checks
 live terminal activity again, gracefully stops the old runtime, copies the
 consistent HOME/workspace group, records the return point, then starts the new
@@ -98,8 +103,12 @@ Readiness uses native RPC, not an open port, PID, HTML response or exit code alo
   unsupported-headless-serve`, `automatic: false`, `reason: updater-unavailable`.
   Desktop-managed SSH runtime update facilities do not establish an OCI image
   updater for this standalone deployment.
-- The server-only package is not the desktop/web-client distribution. The
-  manager therefore does not promise Orca's browser UI from this bundle.
+- The official server-only package omits the paired browser client. This image
+  also verifies the matching official desktop `.deb` checksum and extracts only
+  files in its native `.orca-web-client-files.json` manifest. It runs no Electron
+  or desktop process. Orca's unmodified server discovers and serves that original
+  browser bundle from `out/web`; no Orca UI or pairing workflow is reimplemented.
+  [Native bundle lookup](https://github.com/stablyai/orca/blob/v1.4.261/src/shared/web-client/bundled-web-client-root.ts).
 - [Native account commands](https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/account.ts)
   and [pairing](https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/pair.ts)
   remain Orca features. Pairing can be requested while the runtime runs. We start

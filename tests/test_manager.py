@@ -145,3 +145,37 @@ def test_local_password_reset_invalidates_old_sessions(app):
         )
         assert result.exit_code == 0, result.output
         assert get(client, "/").status_code == 302
+
+
+@pytest.mark.parametrize("length,accepted", [(7, False), (8, True), (256, True), (257, False)])
+def test_admin_setup_accepts_eight_characters_and_keeps_the_length_bounds(app, length, accepted):
+    from pathlib import Path
+
+    with app.test_client() as client:
+        token = (Path(app.config["STATE_DIR"]) / "bootstrap.token").read_text()
+        html = get(client, "/setup").text
+        assert 'minlength="8"' in html and "8–256 characters" in html
+        response = post(
+            client,
+            "/setup",
+            {
+                "csrf_token": csrf(client, "/setup"),
+                "token": token,
+                "password": "x" * length,
+            },
+        )
+        assert (response.status_code == 302) is accepted
+        assert (Path(app.config["STATE_DIR"]) / "bootstrap.token").exists() is not accepted
+
+
+def test_local_password_reset_accepts_eight_characters(app):
+    with app.test_client() as client:
+        bootstrap(app, client)
+        result = app.test_cli_runner().invoke(args=["reset-admin", "--password", "testpass"])
+        assert result.exit_code == 0
+        assert (
+            post(
+                client, "/login", {"csrf_token": csrf(client, "/login"), "password": "testpass"}
+            ).status_code
+            == 302
+        )

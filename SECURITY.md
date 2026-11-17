@@ -20,6 +20,15 @@ coordinator. Containers are not a multi-tenant isolation boundary.
   Tokens, pairing offers, provider credentials and private keys never belong in
   Git, image layers or logs. Optional service output is suppressed because an
   upstream process may print a token-bearing URL.
+- The existing HTTPS proxy serves the original Orca WebUI under `/orca/`.
+  Native Orca pairing remains required; the manager password is not forwarded.
+  Manager cookies and upstream Set-Cookie headers are stripped at this boundary.
+  Automatic upstream discovery accepts only the host-published private IPv4
+  address on port 6768. Browser requests cannot choose another destination.
+  Only that assigned upstream bypasses any configured outgoing HTTP proxy.
+- Administrator passwords accept 8–256 characters and remain scrypt-hashed.
+  Release selection and both deployment layers reject downgrades/reinstalls;
+  older software is accessible only through an existing saved rollback point.
 - TLS and official package checksums remain enabled. Builds may mount the Cloud
   CA bundle as a secret; no private CA key belongs in an image.
 - A rollback with data restore discards newer active HOME/workspace contents.

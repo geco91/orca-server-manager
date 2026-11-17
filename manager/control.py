@@ -9,7 +9,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from manager.releases import validate_version
+from manager.releases import require_upgrade, validate_version
 
 JOB_ID = re.compile(r"[a-f0-9]{32}\Z")
 TERMINAL_STATES = {"completed", "failed", "blocked", "interrupted"}
@@ -119,6 +119,11 @@ class Controller:
             raise ControlError(
                 "The deployment controller is unavailable. No operation was started."
             )
+        deployment = snapshot.get("deployment", {})
+        if action == "update":
+            require_upgrade(version, deployment.get("version"))
+        if action == "rollback" and not deployment.get("previous_version"):
+            raise ControlError("There is no saved previous version to roll back to.")
         job_id = secrets.token_hex(16)
         request = {
             "schema": 1,

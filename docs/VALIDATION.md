@@ -7,7 +7,7 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
 ## Implementation and builds
 
 - `uv sync --frozen` and Ruff lint/format checks: passed.
-- `uv run pytest -q`: **55 passed**. Covers authentication/CSRF/session reset,
+- `uv run pytest -q`: **98 passed**. Covers authentication/CSRF/session reset,
   official source/version validation, stale status and bounded queue handling,
   generation fences, active/unknown terminal blocking, rollback modes, failed
   backup/start, ownership markers, interrupted data swap recovery, mapped-root
@@ -15,18 +15,26 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
   Ten setup-Notes checks cover private mapped-owner reads, symlink/hardlink and
   unsafe-file rejection, marker/operator-note preservation, idempotence, consumed
   code removal and keeping secrets out of argv/output/error messages.
-- Clean operational source:
+  Additional checks cover the 8/256-character password boundaries, numeric and
+  pre-release ordering, cached catalog refiltering, forged downgrade requests,
+  missing rollback points, safe WebUI links/upstreams and original browser asset
+  extraction/checksums without links, traversal, desktop-only files or source maps.
+- Previous setup-Notes baseline source:
   `d78750b82f21ecd3738e26c3c9fe4e6ca349ea33`. Its GitHub Actions checks passed.
   The dedicated builder's final private OCI export also exited zero and recorded
   that clean source commit plus upstream/archive SHA-256 digests. Later
-  documentation-only commits do not change the deployed worker source.
+  documentation-only commits recorded that baseline. Current source and deployed
+  main commit are recorded independently by CI and the private OCI manifests.
 - Runtime, provider extension and manager images built successfully. Native Orca
   reports **1.4.261**, bundled Node **24.22.1**. Codex **0.169.0**, OpenCode
   **1.19.5** and the reused OpenAI tunnel binary **0.0.16** execute in the native
   runtime. Installed binaries do not establish provider authentication.
 - `python3 scripts/smoke.py`: passed with its own disposable Compose resources.
-  Verified HTTPS/certificate and redirect, English bootstrap, sessions/CSRF,
-  native RPC, bridge MCP initialize/tools/health and data after recreation.
+  Verified HTTPS/certificate and redirect, English bootstrap using an eight-character
+  password, sessions/CSRF, native RPC, bridge MCP initialize/tools/health and data after recreation.
+  The original browser HTML and JavaScript load through Caddy over verified HTTPS;
+  non-browser package/manifest paths return 404. Scoped NO_PROXY preserves the
+  environment's outgoing proxy while routing only the assigned runtime locally.
   An unreadable optional bridge token leaves the runtime available. No paid
   agent task was dispatched.
 - Chromium/Playwright: **18 offline-prototype checks** and **10 actual-manager
@@ -76,6 +84,10 @@ above. Its manager setup template was synchronized into the existing manager CT
 and the application workers were gracefully reloaded, preserving its data, TLS
 and address. The final private image export includes the same source for future
 imports. Private build manifests retain the exact provenance of each archive.
+The later upgrade/WebUI refinement uses the original manifest-listed browser
+files from the matching checksummed desktop package; Electron is not run.
+Native rollout records distinguish the application component refresh from the
+original CT rootfs imports and retain the exact main source and archive hashes.
 
 Not exercised: provider sign-in, a user-started agent task, Mac/mobile pairing,
 repository writes, a dedicated external OpenAI tunnel profile or authenticated

@@ -82,6 +82,8 @@ def main():
             f"ORCA_VERSION={version}",
             "--build-arg",
             f"ORCA_SHA256={release['sha256']}",
+            "--build-arg",
+            f"ORCA_WEB_SHA256={release['web_sha256'] or ''}",
             ".",
         ]
     )
@@ -111,6 +113,7 @@ def main():
         "schema": 1,
         "orca_version": version,
         "upstream_sha256": release["sha256"],
+        "upstream_web_sha256": release["web_sha256"],
         "source_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip(),

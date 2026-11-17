@@ -21,7 +21,8 @@ from manager.control import (
     atomic_document,
     read_document,
 )
-from manager.releases import ReleaseError, list_releases
+from manager.links import public_web_url
+from manager.releases import ReleaseError, list_releases, upgrades_only
 
 STEPS = [
     ("server", "Server", "Inspect the native runtime and persistent data."),
@@ -157,7 +158,7 @@ def create_app(test_config=None):
             supplied = request.form.get("token", "")
             valid = token_path.exists() and secrets.compare_digest(supplied, token_path.read_text())
             password = request.form.get("password", "")
-            if valid and 14 <= len(password) <= 256:
+            if valid and 8 <= len(password) <= 256:
                 hashed = generate_password_hash(password)
                 with connect() as db:
                     # Atomic claim: concurrent bootstrap requests cannot replace an administrator.
@@ -171,7 +172,7 @@ def create_app(test_config=None):
                 session.permanent = True
                 return redirect(url_for("overview"))
             failed()
-            error = "Setup failed. Check your token and password (14–256 characters)."
+            error = "Setup failed. Check your code and password (8–256 characters)."
         return render_template("auth.html", bootstrap=True, error=error)
 
     @app.route("/login", methods=["GET", "POST"])
@@ -222,6 +223,7 @@ def create_app(test_config=None):
             else snapshot["controller"]["detail"],
             "version": str(raw_runtime.get("version") or "Unknown")[:80],
             "active_terminals": raw_runtime.get("active_terminals"),
+            "web_url": public_web_url(raw_runtime.get("web_url")),
         }
         integrations = {}
         for key, _, _ in STEPS[1:]:
@@ -280,11 +282,13 @@ def create_app(test_config=None):
     @app.get("/")
     @login_required
     def overview():
+        snapshot = current_status()
         return render_template(
             "overview.html",
-            status=current_status(),
+            status=snapshot,
             free_gb=round(shutil.disk_usage(state).free / 2**30, 1),
-            orca_url=app.config["ORCA_WEB_URL"],
+            orca_url=public_web_url(app.config["ORCA_WEB_URL"])
+            or ("/orca/web-index.html" if snapshot["runtime"]["web_url"] else ""),
         )
 
     @app.get("/connections")
@@ -337,8 +341,14 @@ def create_app(test_config=None):
         except (ReleaseError, OSError) as error:
             release_error = str(error)
             releases = saved.get("data", releases)
+        snapshot = current_status()
+        try:
+            releases = upgrades_only(releases, snapshot["deployment"]["version"])
+        except ReleaseError:
+            releases = {"releases": [], "has_more": False, "page": page}
+            release_error = "The installed version is not known yet. Refresh the runtime status before choosing an upgrade."
         return render_template(
-            "updates.html", status=current_status(), releases=releases, release_error=release_error
+            "updates.html", status=snapshot, releases=releases, release_error=release_error
         )
 
     def queue_operation(action, version=None, restore_data=False):
@@ -352,7 +362,9 @@ def create_app(test_config=None):
                 if row and controller.result(row[0]).get("state") not in TERMINAL_STATES:
                     return redirect(url_for("operation", job_id=row[0]))
                 job = controller.submit(action, version, restore_data)
-            except (ControlError, ReleaseError, OSError) as error:
+            except ReleaseError as error:
+                return render_template("operation-error.html", error=str(error)), 400
+            except (ControlError, OSError) as error:
                 return render_template("operation-error.html", error=str(error)), 503
             db.execute("INSERT INTO operations VALUES (?,?)", (job["id"], time.time()))
             db.execute(
@@ -415,8 +427,8 @@ def create_app(test_config=None):
     @click.password_option(confirmation_prompt=True)
     def reset_admin(password):
         """Reset the administrator from an authorized local terminal."""
-        if not 14 <= len(password) <= 256:
-            raise click.ClickException("Use 14–256 characters.")
+        if not 8 <= len(password) <= 256:
+            raise click.ClickException("Use 8–256 characters.")
         with connect() as db:
             db.execute(
                 "INSERT OR REPLACE INTO admin VALUES(1,?)", (generate_password_hash(password),)

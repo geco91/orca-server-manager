@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from deploy.proxmox.notes import SetupNotesError, sync_setup_notes
 from manager.control import JOB_ID, ControlError, atomic_document, read_document, utc_now
-from manager.releases import resolve_release, validate_version
+from manager.releases import require_upgrade, resolve_release, validate_version
 
 
 class DeploymentError(ValueError):
@@ -306,6 +306,7 @@ class Worker:
         if (
             metadata.get("orca_version") != version
             or metadata.get("upstream_sha256") != release["sha256"]
+            or metadata.get("upstream_web_sha256") != release["web_sha256"]
         ):
             raise DeploymentError("The built version differs from the selected official release.")
         archive = self.cache / f"orca-runtime-{version}.oci.tar"
@@ -444,11 +445,9 @@ class Worker:
     def update(self, job):
         if self.cfg.get("pending"):
             raise DeploymentError("An interrupted change needs recovery before another update.")
-        self.idle_runtime()
         version = job["version"]
-        if version == self.cfg["version"]:
-            self.result(job, "completed", "The selected version is already installed.")
-            return
+        require_upgrade(version, self.cfg["version"])
+        self.idle_runtime()
         self.result(job, "running", "Preparing the selected official release.", "Prepare OCI image")
         archive = self.build(version)
         self.result(job, "running", "Creating the replacement container.", "Prepare OCI container")

@@ -61,6 +61,13 @@ def test_release_metadata_preserves_upstream_labels_without_local_ratings():
     assert normalize_release(draft) is None
     assert not normalize_release(release_item(digest=None))["server_available"]
     assert not normalize_release(release_item(), "arm64")["server_available"]
+    with_web = release_item()
+    with_web["assets"].append(
+        {"name": "orca-ide_1.4.261_amd64.deb", "digest": "sha256:" + "b" * 64}
+    )
+    assert normalize_release(with_web)["web_sha256"] == "b" * 64
+    with_web["assets"][-1]["name"] = "orca-ide_1.4.258_amd64.deb"
+    assert normalize_release(with_web)["web_sha256"] is None
 
 
 @pytest.mark.parametrize("value", ["latest", "../1.4.261", "1.4.261;id", "1.4.261\n", None])
@@ -151,7 +158,7 @@ def test_versions_ui_queues_one_operation_and_requires_explicit_rollback_scope(
         html = get(client, "/updates").text
         assert "1.5.0-beta.1" in html and "Pre-release" in html
         assert "discards changes made since the backup" in html
-        assert "Earlier releases" in html
+        assert "More upgrades" in html
         assert "pct exec 201" in get(client, "/connections/providers").text
         token = csrf(client, "/updates")
         assert post(client, "/actions/rollback", {"csrf_token": token}).status_code == 400
@@ -203,8 +210,8 @@ def test_release_outage_keeps_cached_metadata_and_no_controller_never_suggests_s
         bootstrap(app, client)
         response = get(client, "/updates")
         assert response.status_code == 200
-        assert "Previously retrieved data" in response.text
-        assert "1.4.261" in response.text
+        assert "installed version is not known" in response.text
+        assert 'name="version" value="1.4.261"' not in response.text
         assert "No version change can be started" in response.text
 
 

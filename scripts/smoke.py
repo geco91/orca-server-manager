@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from urllib.request import HTTPCookieProcessor, HTTPSHandler, ProxyHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +57,7 @@ def main():
             ORCA_BIND_IP="127.0.0.1",
             OSM_TRUSTED_HOSTS="localhost,127.0.0.1",
             OSM_BRIDGE_TOKEN_FILE=str(token_file),
+            ORCA_WEB_URL=origin + "/orca/web-index.html",
         )
 
         def compose(*args):
@@ -106,6 +107,24 @@ def main():
             assert response.status == 308 and response.getheader("Location") == origin + "/setup"
             connection.close()
             assert '<html lang="en">' in page("/setup")
+            assert 'minlength="8"' in page("/setup")
+            web = page("/orca/web-index.html")
+            assert "<html" in web.lower() and "Orca" in web
+            asset = re.search(r'src="([^\"]+\.js)"', web)
+            assert asset, "Original Orca WebUI script is missing"
+            with browser.open(
+                urljoin(origin + "/orca/web-index.html", asset[1]), timeout=15
+            ) as response:
+                assert response.status == 200 and "javascript" in response.headers["Content-Type"]
+            from urllib.error import HTTPError
+
+            for path in ["/orca/package.json", "/orca/.orca-web-client-files.json"]:
+                try:
+                    page(path)
+                except HTTPError as error:
+                    assert error.code == 404
+                else:
+                    raise AssertionError("The native WebUI exposed a non-browser file")
             token = compose(
                 "exec",
                 "-T",
@@ -120,17 +139,16 @@ def main():
                 {
                     "csrf_token": csrf("/setup"),
                     "token": token,
-                    "password": secrets.token_urlsafe(24),
+                    "password": secrets.token_hex(4),
                 },
             )
             assert "Run Orca. Keep connections in view." in html
+            assert "Open Orca WebUI" in html and 'target="_blank" rel="noopener noreferrer"' in html
             status = json.loads(page("/api/status"))
             assert status["runtime"]["state"] == "unknown"  # Compose has no Proxmox worker.
             assert not status["controller"]["available"]
             assert "optional" in page("/connections/github").lower()
             assert "OpenAI Secure MCP Tunnel" in page("/connections/tunnel")
-            from urllib.error import HTTPError
-
             try:
                 post("/actions/refresh", {})
             except HTTPError as error:
@@ -143,6 +161,20 @@ def main():
             assert native["runtime"]["reachable"] is True
             assert native["runtime"]["version"] == "1.4.261"
             assert native["runtime"]["active_terminals"] == 0
+            assert native["runtime"]["web_url"].endswith(":6768/web-index.html")
+            offer = json.loads(
+                compose(
+                    "exec",
+                    "-T",
+                    "runtime",
+                    "orca",
+                    "pair",
+                    "--address",
+                    origin.replace("https://", "wss://") + "/orca",
+                    "--json",
+                )
+            )
+            assert offer.get("ok") is True, "Native Orca rejected the HTTPS proxy pairing address"
             provider_checks = {
                 row["name"]: row["value"] for row in native["integrations"]["providers"]["checks"]
             }
@@ -194,7 +226,7 @@ def main():
             assert native["runtime"]["reachable"] is True
             assert native["integrations"]["mcp"]["state"] == "error"
             print(
-                "PASS: verified TLS/redirect, English administrator setup, session, CSRF, native Orca 1.4.261 RPC, installed provider CLIs, real MCP health, persistence after recreation and runtime startup with unreadable optional bridge configuration. No agent dispatched; no tunnel or Proxmox deployment claimed."
+                "PASS: verified TLS/redirect, eight-character English administrator setup, original HTTPS WebUI/assets and native proxy pairing, session, CSRF, native Orca 1.4.261 RPC, installed provider CLIs, real MCP health, persistence after recreation and runtime startup with unreadable optional bridge configuration. No agent dispatched; no tunnel or Proxmox deployment claimed."
             )
         finally:
             compose("down", "--volumes", "--remove-orphans")

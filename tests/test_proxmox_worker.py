@@ -355,3 +355,21 @@ def test_only_native_container_creation_gets_the_pve_directory_umask(monkeypatch
     module.run(["pct", "config", "201"])
     module.run(["cp", "-a", "/private/data", "/private/backup"])
     assert calls == [0o022, -1, -1]
+
+
+@pytest.mark.parametrize("version", ["1.4.258", "1.4.259", "1.4.259-beta.1"])
+def test_worker_rejects_downgrades_and_reinstalls_even_if_a_request_bypasses_the_ui(
+    deployment, version
+):
+    worker, pve = deployment
+    request = job() | {"version": version}
+    worker.execute(request)
+    assert outcome(worker, request) == "failed"
+    assert (
+        "newer Orca release" in read_document(worker.results / f"{request['id']}.json")["message"]
+    )
+    assert worker.cfg["version"] == "1.4.259" and pve.running[201]
+    assert not any(
+        args[:2] in [["pct", "create"], ["pct", "shutdown"], ["pct", "start"]]
+        for args in pve.commands
+    )

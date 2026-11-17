@@ -1,6 +1,7 @@
 'use strict';
 const {spawnSync} = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 function run(command, args, timeout = 7000) {
@@ -19,6 +20,10 @@ function installed(command) {
 const status = cli(['status','--json']);
 const native = status?.result?.runtime;
 const reachable = status?.ok === true && native?.reachable === true;
+const webCheck = reachable && fs.existsSync('/opt/orca/out/web/web-index.html') &&
+  run(process.execPath,['-e',`const http=require('node:http');const req=http.request('http://127.0.0.1:6768/web-index.html',{method:'HEAD'},res=>{res.resume();process.exit(res.statusCode===200&&String(res.headers['content-type']).includes('text/html')?0:1)});req.on('error',()=>process.exit(1));req.setTimeout(2000,()=>{req.destroy();process.exit(1)});req.end();`],3000).status===0;
+const address=Object.values(os.networkInterfaces()).flat().find(entry=>entry?.family==='IPv4'&&!entry.internal)?.address;
+const webUrl=webCheck&&address?`http://${address}:6768/web-index.html`:'';
 let version = 'Unknown';
 try {version=fs.readFileSync('/opt/orca/VERSION','utf8').match(/^orca (.+)$/m)?.[1] || 'Unknown';} catch {}
 const terminals = reachable ? cli(['terminal','list','--json']) : null;
@@ -76,5 +81,5 @@ if (fs.existsSync('/run/secrets/tunnel-command.json')) {
   tunnel.checks=[{name:'Local /readyz',value:local.status===0?'Responded successfully':'Not confirmed'},
     {name:'Authenticated end-to-end MCP call',value:'Not verified by this local probe'}];
 }
-console.log(JSON.stringify({schema:1,runtime:{reachable,version,active_terminals:activeTerminals},
+console.log(JSON.stringify({schema:1,runtime:{reachable,version,active_terminals:activeTerminals,web_url:webUrl},
   integrations:{providers,github,desktop:clients,mobile:clients,mcp:bridge,tunnel}}));

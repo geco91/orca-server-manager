@@ -5,7 +5,7 @@
 The manager starts independently of the Orca runtime. In Proxmox, select the
 **manager container → Summary → Notes** and copy its **First-time setup code**.
 Open the manager guest's HTTPS address and enter that code with your own
-14–256 character password. No container console or filesystem lookup is needed.
+8–256 character password. No container console or filesystem lookup is needed.
 
 The host worker publishes the code to that container's Notes, preserving its
 ownership marker and operator notes. It never puts the code in command arguments,
@@ -40,6 +40,22 @@ address or a DNS name is used, install a matching certificate and restart the
 manager. Do not disable TLS verification.
 
 ## Native setup, not a second Orca
+
+The overview offers **Open Orca WebUI** links in a new tab. The original Orca
+browser client is served through the manager's existing HTTPS endpoint at
+`/orca/web-index.html`. It uses Orca's own pairing, separate from the manager
+administrator login. Request the native pairing link inside the runtime with
+`orca pair --address wss://YOUR-MANAGER-HOST/orca`; replace the host with the
+manager's HTTPS address (including its port, if needed). Do not store pairing fragments in the
+manager's public link configuration.
+
+The proxy learns only the assigned private runtime address/port from the host
+worker's sanitized status. It preserves that target during stale observations
+and refreshes Caddy when the assigned address changes. Manager cookies are not
+forwarded to Orca. The image includes only the original release's manifest-listed
+browser files, not the desktop application. For Docker, the assigned upstream
+is the Compose runtime service; `ORCA_WEB_URL` can point to the manager's HTTPS
+`/orca/web-index.html` address.
 
 The connection page shows the current runtime CT ID. Enter it as the Orca user
 from the Proxmox administrator console:
@@ -80,8 +96,8 @@ MCP health. Raw account JSON, tokens and pairing offers are not returned to the 
 ## Update and rollback
 
 1. Open **Versions & updates**. The paginated list comes from official Orca
-   releases with upstream pre-release labels and links. It includes other
-   available versions; no local stable/approved list exists. Releases lacking a
+   releases with upstream pre-release labels and links. Only versions newer than
+   the installed version appear; no local stable/approved list exists. Releases lacking a
    checksummed server package for this platform cannot be built by this pilot.
 2. Stop work in Orca, including native chat tasks. The live terminal census is
    not a complete chat-task census. Select a version and acknowledge stopped
@@ -103,8 +119,9 @@ previous one. If a backup fails before switching, the old runtime is restarted.
 
 Only the immediately previous version is offered as the saved rollback point.
 Older retained containers/backups remain on disk for deliberate administrator
-inspection/cleanup; they are not an automatic retention policy. All upstream
-versions with usable server packages remain selectable for a new change.
+inspection/cleanup; they are not an automatic retention policy. Only newer
+upstream versions remain selectable for a new upgrade. The saved previous
+version is the only offered downgrade, through an explicit rollback.
 
 ## Community bridge and OpenAI tunnel
 

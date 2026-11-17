@@ -9,6 +9,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from manager.proxy import proxy_environment, proxy_target
+
 data = Path(os.environ.get("OSM_DATA_DIR", "/data"))
 data.mkdir(parents=True, exist_ok=True)
 state = data / "manager"
@@ -59,6 +61,16 @@ if not (certs / "server.crt").exists() and not (certs / "server.key").exists():
     os.chmod(certs / "server.key", 0o600)
 if not (certs / "server.crt").is_file() or not (certs / "server.key").is_file():
     raise RuntimeError("Incomplete persistent HTTPS certificate; restore it before starting.")
+upstream = proxy_target(os.environ.get("OSM_CONTROL_DIR"), os.environ.get("OSM_ORCA_UPSTREAM", ""))
+
+
+def start_proxy(target):
+    return subprocess.Popen(
+        ["/usr/bin/caddy", "run", "--config", "/etc/caddy/Caddyfile"],
+        env=proxy_environment(environment, target),
+    )
+
+
 children = [
     subprocess.Popen(
         [
@@ -76,9 +88,7 @@ children = [
         group=1000,
         extra_groups=[],
     ),
-    subprocess.Popen(
-        ["/usr/bin/caddy", "run", "--config", "/etc/caddy/Caddyfile"], env=environment
-    ),
+    start_proxy(upstream),
 ]
 stopping = False
 
@@ -91,7 +101,19 @@ def stop(*_):
 signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 try:
+    observed_proxy = 0
     while not stopping and all(child.poll() is None for child in children):
+        if time.monotonic() - observed_proxy > 2:
+            observed_proxy = time.monotonic()
+            candidate = proxy_target(
+                os.environ.get("OSM_CONTROL_DIR"), os.environ.get("OSM_ORCA_UPSTREAM", "")
+            )
+            if candidate and candidate != upstream:
+                # Reuse Caddy; only a changed assigned runtime address restarts this child.
+                children[1].terminate()
+                children[1].wait(timeout=15)
+                children[1] = start_proxy(candidate)
+                upstream = candidate
         time.sleep(0.25)
 finally:
     for child in children:

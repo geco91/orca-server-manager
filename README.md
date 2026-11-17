@@ -27,11 +27,18 @@ For first-time administrator setup, copy the code from the **manager container �
 Summary → Notes** in Proxmox and enter it on the English HTTPS setup page. The
 host worker publishes the one-time code there and removes its copy after setup.
 
+The overview links to Orca's original WebUI in a new tab through the manager's
+HTTPS endpoint. Its browser files come from the matching checksummed upstream
+desktop package; the runtime still runs the headless server, without Electron.
+Browser access uses Orca's native pairing.
+
 The pilot starts with upstream [Orca 1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261),
 the current official release when checked for this pilot. It is not classified as stable or
 approved by this project. Later versions are selected directly from Orca's
 release metadata; a published server package and checksum are technical build
 requirements. The manager maintains no release approval list.
+Only newer versions are offered as upgrades; older software is accessible through
+an existing saved rollback point.
 
 ```bash
 # On the dedicated builder, from a clean checkout of the intended commit:
@@ -55,7 +62,7 @@ docker compose --env-file .env -f compose/compose.yaml exec --user 1000:1000 \
 
 Open `https://localhost`. Verify/trust the manager's self-signed certificate or
 install your own certificate in its persistent `/data/tls` directory. Set your
-own administrator password with 14–256 characters. The one-time setup token is
+own administrator password with 8–256 characters. The one-time setup token is
 removed; passwords are stored as scrypt hashes. Ports bind to host loopback by
 default. For LAN/VPN access, configure the bind address, origin, trusted hostnames
 and certificate SAN deliberately. Manager and runtime data persist separately.

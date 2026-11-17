@@ -29,6 +29,7 @@ services:
       OSM_ORIGIN: ${OSM_ORIGIN:-https://localhost}
       OSM_TRUSTED_HOSTS: ${OSM_TRUSTED_HOSTS:-localhost,127.0.0.1}
       ORCA_WEB_URL: ${ORCA_WEB_URL:-}
+      OSM_ORCA_UPSTREAM: runtime:6768
       NO_PROXY: localhost,127.0.0.1
     volumes:
       - manager-data:/data
