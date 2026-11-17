@@ -7,7 +7,7 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
 ## Implementation and builds
 
 - `uv sync --frozen` and Ruff lint/format checks: passed.
-- `uv run pytest -q`: **134 passed**. Covers authentication/CSRF/session reset,
+- `uv run pytest -q`: **153 passed**. Covers authentication/CSRF/session reset,
   official source/version validation, stale status and bounded queue handling,
   generation fences, active/unknown terminal blocking, rollback modes, failed
   backup/start, ownership markers, interrupted data swap recovery, mapped-root
@@ -112,3 +112,27 @@ is claimed.
 These checks validate the manager implementation and recovery process. They are
 not an Orca release approval, stability classification or gate imposed on
 user-selected versions. Versions and labels still come directly from Orca.
+
+## OpenCode image upgrades
+
+- Source `2e0b4096781afb24e478ee115202b3f28217b337`: 153 pytest checks,
+  Ruff lint/format and GitHub Actions passed. Added coverage includes official
+  provider metadata/checksums, downgrade rejection, shared operation locking,
+  cached catalog refiltering, the preserved Orca/OpenCode pair, both rollback
+  data policies, unknown installed versions and mismatched build manifests.
+- Private OCI exports with OpenCode **1.19.4** and **1.19.5** both recorded the
+  clean source and official package/archive digests. The real disposable Compose
+  smoke passed after the build guest received its missing official, checksummed
+  Compose CLI plugin. Original failed attempt records remain separate.
+- A separate native Proxmox runtime with disposable HOME/workspace data changed
+  **OpenCode 1.19.4 → 1.19.5**, keeping **Orca 1.4.261**. Native startup
+  observations confirmed both versions. Software-only rollback restored 1.19.4
+  and retained a file changed after the upgrade. A repeated upgrade followed by
+  software-and-data rollback restored the saved file contents instead.
+- All four native operations completed. The main manager/runtime deployment was
+  unchanged during this trial; all three additional scoped CTs were removed.
+  The first isolated import used a non-traversable staging ancestor and failed
+  before boot. The successful trial used a separate staging path with the
+  intended mapped-root traversal rights, preserving private-directory modes.
+- No provider login, API key or agent task was used. This checks the manager's
+  update/return process; it is no classification or approval of OpenCode releases.
