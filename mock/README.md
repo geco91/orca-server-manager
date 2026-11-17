@@ -9,7 +9,7 @@ simulated state only: no accounts, images, agents or real data are changed.
 Reload or Reset clears the tab's state. A restrictive CSP prevents network calls
 and form submission; explicit documentation links open their upstream source.
 
-Try the native setup guides, then change a demo connection's external state and
+The fresh scenario opens with GitHub, GitLab and Forgejo setup, then the launch step with OpenCode 2. Complete or skip Git setup to reach Overview. Try the native setup guides, then change a demo connection's external state and
 refresh it. A changed state marks an earlier observation as stale. Pairing and
 online/offline are separate demo states; the real pilot reports unknown when a
 native census is unavailable. GitHub is optional. External control uses the

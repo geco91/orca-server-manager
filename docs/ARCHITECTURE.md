@@ -19,7 +19,8 @@ flowchart LR
 ## Boundaries
 
 The manager has no shell, agent-dispatch or general Proxmox API endpoint. Its
-unprivileged Flask process writes only `refresh`, `update`, `update_opencode`, `rollback` or `pair_web` requests
+unprivileged Flask process writes fixed `refresh`, `update`, `update_opencode`, `rollback`, `pair_web`,
+`login_github`, `login_gitlab` and `forgejo_key` requests
 with a fixed schema. The root-owned parent of the queue prevents replacing the
 status/results paths. The host worker claims requests into a private directory,
 rejects links, non-regular or oversized files, validates every field and checks
@@ -39,15 +40,23 @@ Manager data, runtime HOME and workspaces are explicit separate mounts. Provider
 credentials and pairing state stay in runtime HOME. The manager cannot read it.
 Browser pairing uses Orca's fixed native CLI command, never direct profile reads.
 
-The runtime includes OpenCode and prepares a first host default through Orca's
-native `settings.get`/`settings.update` RPC, running as the runtime user. It reads
-only that user's protected local metadata and socket, validates the runtime ID,
-and changes only an unselected `defaultTuiAgent` to `opencode`. A private one-time
-record prevents reapplying the choice after an operator changes it. No account,
-key or task is created, and no profile database is edited directly. The manager
-observes the current native host setting; it does not equate it with provider
-authentication. WebUI agent defaults remain Orca's browser-local preference,
-so the guide includes the native **Set as default** step.
+The standard image ships the official OpenCode 2 binary as `opencode2`.
+Orca launches it with `--standalone` and recognizes OpenCode 1 as a separate
+agent. Native `settings.get` and `settings.update` use the runtime user's
+authenticated local socket and change only `defaultTuiAgent`. A private record
+identifies the previous manager-selected agent so an upgrade can migrate that
+default while honoring the user's own choice. The WebUI keeps a browser-local
+default. [Orca agent catalog](https://github.com/stablyai/orca/blob/v1.4.261/src/shared/agent-launch/catalog/tui-agent-config.ts)
+
+SQLite persists the Git, launch and completed setup stages. After sign-in,
+the manager asks the scoped worker to start a fixed native `gh` or `glab`
+device authorization as the Orca user. While the operator visits the provider,
+the CLI polls the provider in the guest and the worker can process other jobs.
+Only a validated human-entered code reaches the authenticated initiating session
+through the private offer directory. Attempts expire after ten minutes. The CLI
+stores the final credential in persistent runtime HOME. The Forgejo action
+returns an Ed25519 public key. Its instance address stays in the browser and
+the operator registers the key at their own instance.
 
 An authenticated CSRF-protected POST requests browser pairing. The worker checks
 the assigned manager/runtime, deployment generation and request age, and invokes

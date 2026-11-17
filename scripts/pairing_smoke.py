@@ -155,9 +155,7 @@ def check_pairing(compose, native, origin, page, post, csrf, password):
             dashboard.wait_for_url(origin + "/")
             stage = "open the prepared native WebUI"
             with dashboard.expect_popup() as opened:
-                dashboard.get_by_role(
-                    "button", name="Open and connect Orca WebUI", exact=False
-                ).click()
+                dashboard.get_by_role("button", name="Open Orca WebUI", exact=False).click()
             web = opened.value
             stage = "connect through native Orca pairing"
             web.wait_for_url("**/orca/web-index.html*", timeout=60000)

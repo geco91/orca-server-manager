@@ -1,17 +1,11 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="page-heading"><div><span class="eyebrow">YOUR DEVELOPMENT SERVER</span><h1>Run Orca. Keep connections in view.</h1><p>The runtime works independently of optional integrations. Use Orca and the native tools to set up accounts and devices.</p></div></div>
-<div class="hero-grid">
-<section class="panel runtime-panel">
-<div class="panel-top"><span class="eyebrow">ORCA RUNTIME</span><span class="pill {{ 'ready' if status.runtime.state == 'reachable' else status.runtime.state }}">{{ status.runtime.label }}</span></div>
-<h2 class="runtime-title">Your server, your work.</h2><p>{{ status.runtime.detail }}</p>
-<div class="metric-row"><div class="metric"><span>Installed version</span><strong>{{ status.runtime.version }}</strong></div><div class="metric"><span>Deployment</span><strong>{{ status.deployment.backend }}</strong></div><div class="metric"><span>Terminal sessions</span><strong>{{ status.runtime.active_terminals if status.runtime.active_terminals is not none else 'Unknown' }}</strong></div></div>
-<div class="button-row"><form method="post" action="{{ url_for('prepare_web_pairing') }}" target="_blank" rel="noopener"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="open" value="1"><button{% if not status.controller.available or not status.runtime.web_url or active_operation %} disabled{% endif %}>Open and connect Orca WebUI ↗</button></form><form method="post" action="{{ url_for('refresh') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button{% if not status.controller.available or active_operation %} disabled{% endif %}>Refresh status</button></form><a class="button secondary-button" href="{{ url_for('updates') }}">Versions &amp; updates</a></div>
-{% if status.observed_at %}<p class="check-time">Observed: {{ status.observed_at }} · native server observation</p>{% endif %}
-</section>
-<section class="panel"><span class="eyebrow">START HERE</span><h2>1. Connect your Orca WebUI.</h2><p>Open the WebUI and the manager prepares native browser pairing automatically. You do not need to find a pairing URL or code yourself.</p><form method="post" action="{{ url_for('prepare_web_pairing') }}" target="_blank" rel="noopener"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="open" value="1"><button{% if not status.controller.available or not status.runtime.web_url or active_operation %} disabled{% endif %}>Open Orca WebUI in a new tab ↗</button></form><p><a href="{{ url_for('web_pairing') }}">Pairing details &amp; manual fallback →</a></p><h2>2. Continue in Orca.</h2><p>Use Orca and your providers' native tools for agent accounts, projects and repositories. GitHub is optional.</p><a href="{{ url_for('connections') }}">Open guides &amp; connections →</a>
-<div class="notice neutral"><strong>Independent connections</strong><p>A missing GitHub login or an unconfigured tunnel does not block the Orca runtime.</p></div><p class="small-label">Manager storage: {{ free_gb }} GB available.</p></section>
-</div>
+<section class="panel runtime-panel overview-launch"><div><h1>Your Orca workspace</h1><p>Open the WebUI in a new tab to work with repositories and agents.</p></div>
+{% include '_open_orca.html' %}</section>
+<div class="section-heading"><h2>Server</h2><a href="{{ url_for('welcome') }}">Revisit setup →</a></div>
+<section class="panel"><span class="pill {{ 'ready' if status.runtime.state == 'reachable' else status.runtime.state }}">{{ status.runtime.label }}</span>
+<div class="metric-row"><div class="metric"><span>Orca</span><strong>{{ status.runtime.version }}</strong></div><div class="metric"><span>OpenCode</span><strong>{{ status.runtime.opencode_version }}</strong></div><div class="metric"><span>Terminal sessions</span><strong>{{ status.runtime.active_terminals if status.runtime.active_terminals is not none else 'Unknown' }}</strong></div><div class="metric"><span>Manager storage available</span><strong>{{ free_gb }} GB</strong></div></div>
+<div class="button-row"><form method="post" action="{{ url_for('refresh') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="quiet"{% if not status.controller.available or active_operation %} disabled{% endif %}>Refresh status</button></form><a href="{{ url_for('updates') }}">Versions &amp; updates</a></div></section>
 <div class="section-heading"><h2>Connections</h2><a href="{{ url_for('connections') }}">All guides →</a></div>
 {% include '_connections.html' %}
 {% endblock %}

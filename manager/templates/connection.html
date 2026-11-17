@@ -10,22 +10,10 @@
 {% if name == 'server' %}
 <p>The worker reads the native Orca RPC status. A listening port or a web page alone does not prove that Orca is ready.</p><p>Check the runtime logs through the deployment's administrator console if it is not reachable.</p><pre><code>orca status --json</code></pre>
 {% elif name == 'providers' %}
-<p>The standard server image includes <strong>OpenCode</strong>. Initial setup selects it as the Orca host default when no agent has been chosen. No API key or provider account is created.</p>
-<ol class="guide-list"><li><strong>Choose OpenCode in Orca.</strong> In the agent picker, right-click <strong>OpenCode</strong> and choose <strong>Set as default</strong>. Orca saves this WebUI preference separately for each browser.</li><li><strong>Add a model provider when needed.</strong> Open OpenCode in your workspace and use <code>/connect</code> to enter a provider key or follow its native sign-in. More providers can be added later.</li><li><strong>Start your first task in Orca.</strong> A prepared agent does not confirm that a provider is authenticated; this status check starts no agent task.</li></ol>
-<p><a class="button secondary-button" href="{{ url_for('web_pairing') }}">Open Orca WebUI &amp; pairing →</a></p>
-<p class="guide-note">Provider credentials follow OpenCode's native profile scope. Workspace-specific options and environment references belong in OpenCode's project configuration.</p>
-<details><summary>Optional native account management</summary><p>Use Orca's account setup for additional agent accounts. A login on your Mac does not sign in the server.</p>{% if status.deployment.runtime_id %}<pre><code>pct exec {{ status.deployment.runtime_id }} -- runuser -u orca -- /bin/bash</code></pre>{% endif %}<pre><code>orca account add --agent codex
-orca account list --json</code></pre></details>
-<p class="guide-note">Login screens belong to Orca and the provider. The manager does not ask for API keys or passwords.</p>
-<a href="https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/account.ts" target="_blank" rel="noopener noreferrer">Orca account commands ↗</a>
-<a href="https://opencode.ai/docs/config/" target="_blank" rel="noopener noreferrer">OpenCode project configuration ↗</a>
-<h2>OpenCode updates</h2><p>Use <a href="{{ url_for('updates') }}">Versions &amp; updates</a> for the image-supplied OpenCode CLI. Choose a newer official version; the manager saves the previous software and data before restarting the runtime. Later Orca upgrades keep your selected OpenCode version.</p>
-{% elif name == 'github' %}
-<ol class="guide-list"><li><strong>Set up only when needed.</strong> GitHub enables repository access, pushes and pull requests.</li><li><strong>Sign in on the server.</strong> Open a terminal inside the Orca runtime and use the native GitHub CLI.</li><li><strong>Read identity and permissions.</strong> The login on your Mac is separate.</li></ol>
-<details><summary>Commands inside the runtime</summary><pre><code>gh auth login --hostname github.com --web
-gh auth setup-git
-gh auth status --hostname github.com</code></pre></details>
-<div class="notice neutral"><strong>Optional</strong><p>Orca, the MCP tunnel and public Orca releases do not require this GitHub login.</p></div>
+<p>New installations include <strong>OpenCode 2</strong> and select it as the Orca host default. The previous OpenCode CLI is also available for existing workspaces.</p>
+<ol class="guide-list"><li><strong>Open Orca.</strong> In the agent picker, right-click <strong>OpenCode 2</strong> and choose <strong>Set as default</strong> for this browser.</li><li><strong>Connect your model provider.</strong> Use OpenCode 2 in your workspace or run <code>opencode2 auth login</code> in a runtime terminal. Credentials are stored in the native provider profile.</li></ol>
+{% if status.deployment.runtime_id %}<details><summary>Open the runtime terminal</summary><pre><code>pct exec {{ status.deployment.runtime_id }} -- runuser -l orca</code></pre></details>{% endif %}
+<div class="button-row"><a href="{{ url_for('web_pairing') }}">Open Orca WebUI &amp; pairing</a><a href="{{ url_for('updates') }}">Versions &amp; updates</a></div>
 {% elif name in ['desktop', 'mobile'] %}
 <ol class="guide-list"><li><strong>Ask the running Orca server for its pairing offer.</strong> This does not require restarting the server.</li><li><strong>{{ 'Pair in Orca Mobile.' if name == 'mobile' else 'Add the server in the Mac client.' }}</strong> {{ 'Scan the QR code created by Orca.' if name == 'mobile' else 'Open Settings → Remote Orca Servers → Add Server and use the link created by Orca.' }}</li><li><strong>Use LAN or VPN connectivity.</strong> Keep pairing links private.</li></ol>
 <details><summary>Native pairing command</summary><pre><code>{{ 'orca pair --mobile' if name == 'mobile' else 'orca pair' }}</code></pre></details>

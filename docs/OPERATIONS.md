@@ -41,7 +41,12 @@ manager. Do not disable TLS verification.
 
 ## Native setup, not a second Orca
 
-Choose **Open and connect Orca WebUI** in the overview. A new tab waits for the
+After the administrator signs in, **Connect your Git accounts** opens first.
+Choose GitHub, GitLab or Forgejo, or use **Continue to Orca** to skip this step.
+The manager remembers the current step across restarts. **Finish setup & go to
+overview** opens the management pages. **Revisit setup** opens the guide again.
+
+Choose **Open Orca WebUI** in step two or at the top of the overview. A new tab waits for the
 scoped host worker to request Orca's own browser-pairing link, then opens that
 link automatically. The original browser client is served at
 `/orca/web-index.html` through the manager's existing HTTPS endpoint. Orca
@@ -76,31 +81,35 @@ from the Proxmox administrator console:
 pct exec RUNTIME_CT_ID -- /usr/sbin/runuser -u orca -- /bin/bash
 ```
 
-OpenCode is already included in the standard provider image and selected as the
-initial host default when no explicit agent choice exists. Existing choices are
-preserved, including after later boots. The current default is read through
-native RPC and shown in the provider checks. This does not create a provider
-account or prove authentication.
+The runtime includes OpenCode 2 and selects `opencode2` as the initial host
+default. An earlier manager-selected OpenCode 1 preference migrates if it is
+still selected. The previous executable remains available for existing
+workspaces. Agent settings shows the observed default and installed version.
 
-In the original Orca WebUI, choose **OpenCode** in the agent picker, right-click
-it and select **Set as default**. Orca saves this preference separately for each
-browser; a host default does not silently change a client's saved preference.
-Open OpenCode in the desired workspace and use `/connect` to configure a model
-provider through OpenCode's own UI. Provider credentials follow OpenCode's
-profile scope; project configuration and environment references can supply
-workspace-specific settings. The manager never collects those keys. See the
-[native configuration documentation](https://opencode.ai/docs/config/).
+In the original Orca WebUI, right-click **OpenCode 2** in the agent picker
+and select **Set as default** for this browser. Configure model access later,
+in OpenCode 2 in your workspace or with `opencode2 auth login` on the runtime.
+The native provider stores its credentials in the Orca user's profile.
 
 Codex is also installed as a pinned provider-image extension. If needed, use
 `orca account add --agent codex` and inspect `orca account list --json` from the
 runtime terminal above. Follow the native login prompts and start your first
 task in Orca. The manager starts no paid agent task to check a login.
 
-GitHub is optional. When a project needs repos, pushes or PRs, use native
-`gh auth login --hostname github.com --web`, `gh auth setup-git` and
-`gh auth status --hostname github.com`. The server's login is separate from your
-Mac's. Reading an authenticated identity does not establish repository push
-permission. Public Orca metadata/downloads do not require this runtime login.
+For GitHub.com or GitLab.com, choose **Get a sign-in code** and open the
+provider's authorization page. Create an account there if needed. Enter the
+code and approve access. Return to the manager to see the outcome. The
+runtime's official CLI stores the login and configures Git for HTTPS.
+The dashboard reads the signed-in username from the provider. A repository
+clone or push in Orca verifies permissions for that specific repository.
+[GitHub CLI login](https://cli.github.com/manual/gh_auth_login) ·
+[GitLab CLI login](https://docs.gitlab.com/cli/auth/login/)
+
+For Forgejo, enter the instance's HTTPS address, choose **Prepare public SSH
+key**, and paste it in the instance's **SSH key settings**. The runtime reuses
+its Ed25519 identity or creates one in its persistent HOME. Clone with the
+repository's SSH URL in Orca. For self-managed GitLab or an instance with a
+different sign-in policy, expand **Use the runtime terminal** on the GitLab page.
 
 Request a Mac pairing offer with `orca pair`, or mobile with `orca pair --mobile`.
 The running runtime need not restart. Use Orca's link/QR code in its native
@@ -116,7 +125,7 @@ The dashboard considers it fresh for 90 seconds. A missing/stale worker never
 claims a working connection. During long image builds the last snapshot may
 expire; the operation page still displays the queued/running operation. The next
 observation refreshes status. The worker reads native RPC, a complete local
-terminal census, account counts, native Codex login status, GitHub identity and
+terminal census, account counts, native Codex login status, GitHub and GitLab identities and
 MCP health. Raw account JSON, tokens and pairing offers never enter status
 snapshots or ordinary job results. A requested browser pairing link travels
 through a separate private, session-owned endpoint.
@@ -143,10 +152,8 @@ OpenCode updates replace the runtime image while keeping the installed Orca
 version. Later Orca updates keep the selected OpenCode version. The saved return
 point records both versions plus the consistent data backup. Provider credentials
 remain in runtime HOME; no keys need to be re-entered for an image upgrade.
-The image installs OpenCode in root-owned `/usr/local/bin`. Its inspected 1.19.5
-curl updater targets a user-home installation and provides no saved return point,
-so this deployment uses the common image update process. Avoid shadowing the
-image binary with a separate home-directory install.
+OpenCode 2 is installed in root-owned `/usr/local/bin/opencode2`. Use the
+image upgrade path for a persistent version change and a saved return point.
 
 One operation is active across browser sessions; the worker also checks the
 installation generation. Interrupted operations are recorded and not blindly

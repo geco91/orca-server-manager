@@ -10,13 +10,13 @@
 </head>
 <body>
 <header class="app-header">
-<a class="brand brand-button" href="{{ url_for('overview') }}"><span class="mark" aria-hidden="true">◒</span><span class="brand-name">Orca <small>Server Manager</small></span></a>
+<a class="brand brand-button" href="{{ url_for('home') }}"><span class="mark" aria-hidden="true">◒</span><span class="brand-name">Orca <small>Server Manager</small></span></a>
 {% if current_user.is_authenticated %}
-<nav id="main-nav" aria-label="Main navigation">
+{% if not guided %}<nav id="main-nav" aria-label="Main navigation">
 <a class="nav-button" href="{{ url_for('overview') }}"{% if request.endpoint == 'overview' %} aria-current="page"{% endif %}>Overview</a>
 <a class="nav-button" href="{{ url_for('connections') }}"{% if request.endpoint in ['connections', 'connection'] %} aria-current="page"{% endif %}>Connections</a>
 <a class="nav-button" href="{{ url_for('updates') }}"{% if request.endpoint in ['updates', 'operation'] %} aria-current="page"{% endif %}>Versions &amp; updates</a>
-</nav>
+</nav>{% else %}<span class="setup-nav-label">Server setup</span>{% endif %}
 <form action="{{ url_for('sign_out') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="quiet">Sign out</button></form>
 {% endif %}
 </header>
@@ -24,7 +24,7 @@
 {% if active_operation %}<div class="notice neutral"><strong>An operation is in progress.</strong><a href="{{ url_for('operation', job_id=active_operation.id) }}">View progress</a></div>{% endif %}
 {% block content %}{% endblock %}
 </main>
-<footer>Orca handles development. The manager helps with setup, connections and operation.</footer>
+
 {% block scripts %}{% endblock %}
 </body>
 </html>

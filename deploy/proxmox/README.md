@@ -38,7 +38,7 @@ builder, then build from a clean tree:
 
 ```bash
 bash deploy/proxmox/prepare-debian.sh --apply
-python3 scripts/build-oci.py --version 1.4.261 --opencode-version 1.19.5 --manager --output /srv/orca-oci
+python3 scripts/build-oci.py --version 1.4.261 --opencode-version 2.3.0 --manager --output /srv/orca-oci
 ```
 
 Output: `orca-runtime-1.4.261.oci.tar`, `orca-manager-0.2.0.oci.tar` and
@@ -48,7 +48,7 @@ upstream/OCI checksum. No registry push, GitHub account pairing or public image
 is required. An output lock prevents overlapping builds. The manifest records
 both `orca_version` and `opencode_version` plus official package digests. Match
 the configuration's `version` and `opencode_version` to those build arguments;
-the latter defaults to 1.19.5 for existing pilot configurations.
+new configurations select 2.3.0. Older configurations without a recorded version use their historical 1.19.5 baseline.
 
 ## Print the exact installation plan
 
@@ -114,7 +114,7 @@ disposable files. It ended on Orca 1.4.261 with a fresh administrator setup and
 retained stopped replacement CTs. See [VALIDATION.md](../../docs/VALIDATION.md).
 
 Complete a provider login and first user-started Orca task, Mac/mobile pairing,
-optional GitHub access and the separate external tunnel in their native tools.
+repository access and the separate external tunnel. The setup assistant guides GitHub.com and GitLab.com device authorization and Forgejo SSH key registration.
 These are not established by the local MCP health check or by the lifecycle
 trial. Never start a retained CT alongside the active runtime: they share data
 and the runtime MAC. Keep actual host addresses and credentials in the private

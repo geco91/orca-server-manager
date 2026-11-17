@@ -30,7 +30,7 @@ COPY --from=assemble /opt/orca /opt/orca
 COPY --from=assemble /opt/orca-mcp /opt/orca-mcp
 RUN ln -s /opt/orca/bin/orca-ide /usr/local/bin/orca \
     && ln -s "/opt/orca/runtimes/node-$(cat /opt/orca/orcad/.runtime-node)/bin" /opt/orca/node-bin
-COPY --chmod=644 container/runtime-health.cjs container/runtime-status.cjs container/runtime-launch.cjs container/opencode-default.cjs /opt/osm/
+COPY --chmod=644 container/runtime-health.cjs container/runtime-status.cjs container/runtime-launch.cjs container/opencode-default.cjs container/forge.cjs /opt/osm/
 COPY --chmod=644 scripts/mcp-smoke.mjs /opt/osm/mcp-health.mjs
 USER 1000:1000
 ENV HOME=/home/orca ORCA_USER_DATA=/home/orca/.config/Orca \

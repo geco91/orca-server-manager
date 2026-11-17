@@ -20,10 +20,12 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from deploy.proxmox import forge
 from deploy.proxmox.notes import SetupNotesError, sync_setup_notes
 from deploy.proxmox.pairing import prune_pairings, publish_pairing, read_manager_origin
 from manager.control import JOB_ID, ControlError, atomic_document, read_document, utc_now
-from manager.opencode_releases import DEFAULT_VERSION as DEFAULT_OPENCODE_VERSION
+from manager.forge import ACTIONS as FORGE_ACTIONS
+from manager.opencode_releases import LEGACY_VERSION as LEGACY_OPENCODE_VERSION
 from manager.opencode_releases import require_upgrade as require_opencode_upgrade
 from manager.opencode_releases import resolve_release as resolve_opencode
 from manager.opencode_releases import validate_version as validate_opencode
@@ -83,7 +85,7 @@ def load_config(path):
     if not re.fullmatch(r"[a-f0-9]{40}", cfg.get("source_commit", "")):
         raise DeploymentError("Pin the manager source commit.")
     validate_version(cfg.get("version"))
-    validate_opencode(cfg.setdefault("opencode_version", DEFAULT_OPENCODE_VERSION))
+    validate_opencode(cfg.setdefault("opencode_version", LEGACY_OPENCODE_VERSION))
     ssh_config = Path(cfg.get("ssh_config", ""))
     if not ssh_config.is_absolute():
         raise DeploymentError("Use an explicit, private SSH configuration.")
@@ -100,6 +102,7 @@ def validate_request(document, name):
     if document.get("id") != name or not JOB_ID.fullmatch(name):
         raise DeploymentError("Invalid operation identity.")
     if document.get("action") not in {
+        *FORGE_ACTIONS,
         "refresh",
         "update",
         "update_opencode",
@@ -125,7 +128,7 @@ def validate_request(document, name):
 class Worker:
     def __init__(self, cfg, config_path, command=run):
         self.cfg, self.config_path, self.run = cfg, config_path, command
-        self.cfg.setdefault("opencode_version", DEFAULT_OPENCODE_VERSION)
+        self.cfg.setdefault("opencode_version", LEGACY_OPENCODE_VERSION)
         self.base, self.data = Path(cfg["base"]), Path(cfg["data"])
         self.control, self.private = self.data / "control", self.data / "private"
         self.requests, self.results = self.control / "requests", self.control / "results"
@@ -213,9 +216,13 @@ class Worker:
         runtime = result.get("runtime", {})
         if not isinstance(runtime, dict):
             raise DeploymentError("Unexpected runtime observation.")
-        try:
-            validate_opencode(runtime.get("opencode_version"))
-        except ValueError:
+        if "opencode_version" in runtime:
+            try:
+                validate_opencode(runtime["opencode_version"])
+            except ValueError:
+                runtime["opencode_version"] = None
+        else:
+            # Older observers only included Orca. Their image shipped the v1 executable.
             try:
                 version = (
                     self.run(
@@ -616,7 +623,7 @@ class Worker:
         self.cfg.update(
             runtime_id=previous["id"],
             version=previous["version"],
-            opencode_version=previous.get("opencode_version", DEFAULT_OPENCODE_VERSION),
+            opencode_version=previous.get("opencode_version", LEGACY_OPENCODE_VERSION),
             generation=self.cfg.get("generation", 0) + 1,
         )
         self.cfg.setdefault("retained_containers", []).append(current_id)
@@ -656,6 +663,8 @@ class Worker:
                     "completed",
                     "The native runtime status was read. No account or device was connected.",
                 )
+            elif job["action"] in FORGE_ACTIONS:
+                forge.start(self, job)
             elif job["action"] == "pair_web":
                 self.pair_web(job)
             elif job["action"] in {"update", "update_opencode"}:
@@ -699,6 +708,7 @@ class Worker:
                 pass
             path.rename(path.with_suffix(".interrupted"))
         self.publish_status()
+        forge.poll(self)
         for source in sorted(self.requests.glob("*.json")):
             if not JOB_ID.fullmatch(source.stem) or source.is_symlink():
                 continue

@@ -9,6 +9,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from manager.forge import ACTIONS as FORGE_ACTIONS
 from manager.opencode_releases import require_upgrade as require_opencode_upgrade
 from manager.opencode_releases import validate_version as validate_opencode
 from manager.pairing import validate_pairing
@@ -109,7 +110,14 @@ class Controller:
             }
 
     def submit(self, action, version=None, restore_data=False):
-        if action not in {"refresh", "update", "update_opencode", "rollback", "pair_web"}:
+        if action not in {
+            *FORGE_ACTIONS,
+            "refresh",
+            "update",
+            "update_opencode",
+            "rollback",
+            "pair_web",
+        }:
             raise ControlError("Unsupported deployment action.")
         if action == "update_opencode":
             validate_opencode(version)
@@ -125,6 +133,12 @@ class Controller:
                 "The deployment controller is unavailable. No operation was started."
             )
         deployment = snapshot.get("deployment", {})
+        if action in FORGE_ACTIONS and FORGE_ACTIONS[action] not in snapshot.get("runtime", {}).get(
+            "git_setup", []
+        ):
+            raise ControlError(
+                "This runtime does not currently offer that sign-in. Use the terminal instructions below."
+            )
         if action == "pair_web" and (
             snapshot.get("runtime", {}).get("reachable") is not True
             or not snapshot.get("runtime", {}).get("web_url")

@@ -22,7 +22,9 @@ from manager.control import (
     atomic_document,
     read_document,
 )
+from manager.forge import PROVIDERS
 from manager.links import public_web_url
+from manager.onboarding import register as register_onboarding
 from manager.opencode_releases import list_releases as list_opencode_releases
 from manager.pairing import PAIRING_TTL, PairingError
 from manager.releases import ReleaseError, list_releases, upgrades_only
@@ -31,6 +33,8 @@ STEPS = [
     ("server", "Server", "Inspect the native runtime and persistent data."),
     ("providers", "Agent providers", "Set up accounts with Orca and the provider's native login."),
     ("github", "GitHub", "Optional repository, push and pull request access."),
+    ("gitlab", "GitLab", "Connect your GitLab account to work with repositories."),
+    ("forgejo", "Forgejo", "Register the runtime SSH key with your Forgejo instance."),
     ("desktop", "Mac desktop", "Pair through Orca and inspect the current connection."),
     ("mobile", "Mobile app", "Use Orca's native pairing over your LAN or VPN."),
     ("mcp", "Community MCP bridge", "Use the existing bridge for external coordinators."),
@@ -84,6 +88,8 @@ def create_app(test_config=None):
           CREATE TABLE IF NOT EXISTS steps (name TEXT PRIMARY KEY, skipped INTEGER NOT NULL);
           CREATE TABLE IF NOT EXISTS operations (id TEXT PRIMARY KEY, created REAL NOT NULL);
           CREATE TABLE IF NOT EXISTS preferences (name TEXT PRIMARY KEY, value TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS git_attempts (
+            id TEXT PRIMARY KEY, provider TEXT NOT NULL, owner TEXT NOT NULL, created REAL NOT NULL);
           CREATE TABLE IF NOT EXISTS web_pairings (
             id TEXT PRIMARY KEY, owner TEXT NOT NULL, created REAL NOT NULL);
           CREATE TABLE IF NOT EXISTS attempts (id INTEGER PRIMARY KEY CHECK(id=1),
@@ -131,7 +137,7 @@ def create_app(test_config=None):
         response.headers["Referrer-Policy"] = "same-origin"
         if request.endpoint in {"web_pairing", "web_pairing_job", "web_pairing_data"}:
             response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-        if request.endpoint == "web_pairing_data":
+        if request.endpoint in {"web_pairing_data", "git_progress"}:
             response.headers["Referrer-Policy"] = "no-referrer"
         if request.is_secure:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
@@ -180,7 +186,7 @@ def create_app(test_config=None):
                 session.clear()
                 login_user(Admin(hashed))
                 session.permanent = True
-                return redirect(url_for("overview"))
+                return redirect(url_for("home"))
             failed()
             error = "Setup failed. Check your code and password (8–256 characters)."
         return render_template("auth.html", bootstrap=True, error=error)
@@ -200,7 +206,7 @@ def create_app(test_config=None):
                 session.permanent = True
                 with connect() as db:
                     db.execute("DELETE FROM attempts")
-                return redirect(url_for("overview"))
+                return redirect(url_for("home"))
             failed()
             error = "Sign-in failed."
         return render_template("auth.html", bootstrap=False, error=error)
@@ -235,6 +241,7 @@ def create_app(test_config=None):
             "opencode_version": str(raw_runtime.get("opencode_version") or "Unknown")[:80],
             "active_terminals": raw_runtime.get("active_terminals"),
             "web_url": public_web_url(raw_runtime.get("web_url")),
+            "git_setup": [p for p in PROVIDERS if p in (raw_runtime.get("git_setup") or [])],
         }
         integrations = {}
         for key, _, _ in STEPS[1:]:
@@ -294,7 +301,7 @@ def create_app(test_config=None):
     def common_values():
         return {"active_operation": active_operation(), "steps": STEPS}
 
-    @app.get("/")
+    @app.get("/overview")
     @login_required
     def overview():
         snapshot = current_status()
@@ -306,6 +313,8 @@ def create_app(test_config=None):
             orca_url=public_web_url(app.config["ORCA_WEB_URL"])
             or ("/orca/web-index.html" if snapshot["runtime"]["web_url"] else ""),
         )
+
+    register_onboarding(app, connect, controller, current_status, active_operation, overview)
 
     def owned_pairing(job_id):
         if not job_id or not session.get("pairing_owner"):
@@ -418,6 +427,8 @@ def create_app(test_config=None):
     @app.get("/connections/<name>")
     @login_required
     def connection(name):
+        if name in PROVIDERS:
+            return redirect(url_for("git_provider", provider=name))
         if name not in {key for key, _, _ in STEPS}:
             abort(404)
         title = next(title for key, title, _ in STEPS if key == name)

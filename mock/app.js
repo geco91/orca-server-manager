@@ -9,6 +9,8 @@
   const services = [
     {id:'providers',title:'Agent providers',icon:'AI',description:'Inspect native Codex and OpenCode accounts on the server.'},
     {id:'github',title:'GitHub',icon:'git',description:'Optional repository access, pushes and pull requests.'},
+    {id:'gitlab',title:'GitLab',icon:'git',description:'Authorize GitLab.com with a browser code.'},
+    {id:'forgejo',title:'Forgejo',icon:'git',description:'Register the runtime’s SSH key on your instance.'},
     {id:'desktop',title:'Mac desktop',icon:'Mac',description:'Pair in Orca. Pairing and current connectivity are separate.'},
     {id:'mobile',title:'Mobile app',icon:'App',description:'Use native Orca pairing over your LAN or VPN.'},
     {id:'mcp',title:'Community MCP bridge',icon:'MCP',description:'Use the existing community bridge for external coordinators.'},
@@ -17,6 +19,8 @@
   const evidenceChoices = {
     providers:[['installed','CLIs installed · not signed in'],['authenticated','Native sign-in present'],['expired','Sign-in expired'],['missing','CLIs not installed']],
     github:[['anonymous','GitHub CLI installed · not signed in'],['authenticated','Signed in on the server'],['expired','Sign-in invalid']],
+    gitlab:[['anonymous','GitLab CLI installed'],['authenticated','Signed in on the server'],['expired','Sign-in invalid']],
+    forgejo:[['unconfigured','Key not prepared'],['prepared','Public key prepared']],
     desktop:[['unpaired','Not paired'],['connected','Paired in Orca and connected'],['offline','Paired · device offline']],
     mobile:[['unpaired','Not paired'],['connected','Paired in Orca and connected'],['offline','Paired · device offline']],
     mcp:[['absent','Bridge not configured'],['ready','Bridge reachable'],['error','Bridge not responding']],
@@ -45,8 +49,8 @@
   function reset(scenario='fresh') {
     generation++;
     document.querySelectorAll('dialog[open]').forEach(d=>d.close());
-    state={page:'overview',scenario,version:'1.4.239',target:'1.4.261',online:true,runtimeEpoch:0,
-      checks:{},revisions:{},evidence:{providers:'installed',github:'anonymous',desktop:'unpaired',mobile:'unpaired',mcp:'absent',tunnel:'unconfigured'},
+    state={page:scenario==='fresh'?'welcome':'overview',guided:scenario==='fresh',scenario,version:'1.4.239',target:'1.4.261',online:true,runtimeEpoch:0,
+      checks:{},revisions:{},evidence:{providers:'installed',github:'anonymous',gitlab:'anonymous',forgejo:'unconfigured',desktop:'unpaired',mobile:'unpaired',mcp:'absent',tunnel:'unconfigured'},
       busy:null,update:null,recovery:null,history:[],workRevision:0,activeWork:scenario==='active-work',failUpdate:scenario==='update-failure'};
     if (scenario!=='fresh') Object.assign(state.evidence,{providers:'authenticated',github:'authenticated',desktop:'connected',mobile:'connected',mcp:'ready',tunnel:'connected'});
     if (scenario==='paired-offline') state.evidence.desktop=state.evidence.mobile='offline';
@@ -62,7 +66,8 @@
     const value=state.evidence[id],ready=['authenticated','connected','ready'].includes(value),failed=['expired','error'].includes(value);
     const label=ready?'Connected':failed?'Connection needs attention':value==='offline'?'Paired · offline':'Native setup required';
     if (id==='providers') return {status:ready?'ready':failed?'error':'partial',label:ready?'Native sign-in present':failed?'Sign-in expired':'Native setup required',rows:[['Codex / OpenCode CLI',value==='missing'?'Not installed':'Installed'],['Native account',ready||failed?'Registered in demo':'Not confirmed'],['Native sign-in',ready?'Present in demo':failed?'Expired':'Not confirmed'],['Agent task','Not started by this check']]};
-    if (id==='github') return {status:ready?'ready':failed?'error':'partial',label:ready?'Server signed in':failed?'Sign-in invalid':'Server login not verified',rows:[['GitHub CLI','Installed on the server'],['Server identity',ready?'Example account · simulated':'Not confirmed'],['Repository permissions','Not inferred from account sign-in'],['Changes made by this check','No pushes or pull requests']]};
+    if (id==='forgejo') return {status:'unknown',label:'Verify at your instance',rows:[['Runtime public key',value==='prepared'?'Prepared':'Not requested'],['Repository access','Verify with an SSH clone in Orca']]};
+    if (id==='github'||id==='gitlab') return {status:ready?'ready':failed?'error':'partial',label:ready?'Server signed in':failed?'Sign-in invalid':'Server login not verified',rows:[[id==='github'?'GitHub CLI':'GitLab CLI','Installed on the server'],['Server identity',ready?'Example account · simulated':'Not confirmed'],['Repository permissions','Not inferred from account sign-in'],['Changes made by this check','No pushes or pull requests']]};
     if (id==='desktop'||id==='mobile') return {status:ready?'ready':value==='offline'?'offline':'partial',label:ready?'Connected':value==='offline'?'Paired · offline':'Not paired',rows:[['Device',id==='desktop'?'Example MacBook':'Example phone'],['Paired in Orca',value==='unpaired'?'No':'Yes'],['Current connection',ready?'Online':'Offline'],['Access path','LAN or VPN']]};
     if (id==='mcp') return {status:ready?'ready':failed?'error':'partial',label:ready?'Bridge reachable':failed?'Bridge not responding':'Bridge not configured',rows:[['Component','BuildContext/orca-mcp'],['MCP initialize',ready?'Succeeded in demo':'Not confirmed'],['Read-only Orca health',ready?'Succeeded in demo':'Not confirmed'],['Agent dispatch','Not performed']]};
     const bridgeReady=state.evidence.mcp==='ready';
@@ -75,22 +80,35 @@
   }
   function checkTime(id) {return `<p class="check-time">${state.checks[id]?'Last demo observation: '+state.checks[id].at:'Not checked yet.'}</p>`;}
   function cards() {return `<div class="connection-grid">${services.map(s=>{const r=record(s.id);return `<button class="panel connection-card" data-action="navigate" data-page="${s.id}"><div class="card-top"><span class="service-icon">${s.icon}</span>${pill(r.label,r.status)}</div><h3>${s.title}</h3><p>${s.description}</p><span class="card-link">Guide & status →</span></button>`;}).join('')}</div>`;}
+  function setupButton(page, title, quiet=false) {
+    return `<button class="${quiet?'quiet':''}" data-action="navigate" data-page="${page}">${title}</button>`;
+  }
+  function welcome() {
+    if (state.page==='launch') return heading('STEP 2 OF 2','Open your Orca workspace','OpenCode 2 is the server default. In Orca’s agent picker, choose Set as default for this browser.')+
+      `<section class="panel"><button data-action="preview-orca">Open Orca WebUI ↗</button><p id="launch-result" role="status"></p></section><p>${setupButton('overview','Finish setup &amp; go to overview →',true)}</p>`;
+    return heading('STEP 1 OF 2','Connect your Git accounts','Choose where you keep your repositories, or continue to Orca now.')+
+      `<section class="panel"><div class="button-row">${['github','gitlab','forgejo'].map(id=>setupButton(id, services.find(s=>s.id===id).title)).join('')}</div></section><p>${setupButton('launch','Continue to Orca →')}</p>`;
+  }
   function overview() {
     const r=record('server');
-    return heading('YOUR DEVELOPMENT SERVER','Run Orca. Keep connections in view.','Set up accounts and devices in Orca and the native tools. The manager observes their state.')
-      +`<div class="hero-grid"><section class="panel runtime-panel"><div class="panel-top"><span class="eyebrow">ORCA RUNTIME</span>${pill(r.label,r.status)}</div><h2 class="runtime-title">Your server, your work.</h2><p>The runtime works independently of optional integrations.</p><div class="metric-row"><div class="metric"><span>Installed version</span><strong>${state.version}</strong></div><div class="metric"><span>Deployment</span><strong>Proxmox OCI</strong></div></div><div class="button-row"><button data-action="check" data-service="server"${disabled(state.busy)}>Refresh server status</button><button class="quiet" data-action="navigate" data-page="updates">Versions & updates</button></div>${checkTime('server')}</section><section class="panel"><span class="eyebrow">CONTINUE IN ORCA</span><h2>Set things up where they belong.</h2><p>Orca manages projects, agents, sessions and worktrees.</p><p>GitHub is optional for repositories, pushes and pull requests.</p>${notice('Independent connections','A missing GitHub login or an unconfigured tunnel does not block Orca.','neutral')}</section></div><div class="section-heading"><h2>Connections</h2><button class="text-button" data-action="navigate" data-page="connections">All guides →</button></div>`+cards();
+    return heading('OVERVIEW','Your Orca workspace','Open Orca to work with repositories and agents.')+
+      `<div class="button-row"><button data-action="preview-orca">Open Orca WebUI ↗</button>${setupButton('welcome','Revisit setup',true)}</div><p id="launch-result" role="status"></p>
+      <section class="panel"><h2>Server</h2>${pill(r.label,r.status)}${rows([['Orca',state.version],['Default agent','OpenCode 2'],['Deployment','Proxmox OCI']])}<button class="quiet" data-action="check" data-service="server"${disabled(state.busy)}>Refresh server status</button>${checkTime('server')}</section><div class="section-heading"><h2>Connections</h2></div>`+cards();
   }
   function connections() {return heading('OPTIONAL CONNECTIONS','Native setup. Technical status.','Each connection is independent. The manager does not replace native login or pairing.')+`<div class="section-heading"><h2>Guides & connections</h2><button class="quiet" data-action="check-all"${disabled(state.busy)}>Refresh all statuses</button></div>`+cards();}
   function guide(id) {
-    if (id==='providers') return `<ol class="guide-list"><li><strong>Provide the agent CLI on the server.</strong> An installed CLI is separate from account authentication.</li><li><strong>Run native setup inside the runtime.</strong> A login on your Mac does not sign in the server.</li><li><strong>Try your first agent task in Orca.</strong> This check does not start paid work.</li></ol><details><summary>Native commands inside the runtime</summary>${command(['orca account add --agent codex','orca account add --agent opencode','orca account list --json'])}</details>`;
-    if (id==='github') return `<ol class="guide-list"><li><strong>Set up when a project needs it.</strong> GitHub provides repository, push and pull request access.</li><li><strong>Sign in on the server.</strong> Use the native GitHub CLI inside the runtime.</li><li><strong>Inspect identity and repository permissions.</strong> Your Mac login is separate.</li></ol><details><summary>Native commands inside the runtime</summary>${command(['gh auth login --hostname github.com --web','gh auth setup-git','gh auth status --hostname github.com'])}</details>${notice('Optional','Orca, the MCP tunnel and public Orca releases do not require this GitHub login.','neutral')}`;
+    if (id==='providers') return '<p>OpenCode 2 is installed as the host default. Set the browser default in Orca’s agent picker and add model access in your workspace.</p>';
+    if (['github','gitlab','forgejo'].includes(id)) {
+      const ssh=id==='forgejo';
+      return `<p>${ssh?'Prepare the public SSH key, then register it at your Forgejo instance.':'Request a device code and complete sign-in on the provider’s authorization page.'}</p><button data-action="demo-forge" data-service="${id}">${ssh?'Prepare example public key':'Try device sign-in'}</button><p class="demo-offer" role="status"></p>`;
+    }
     if (id==='desktop'||id==='mobile') return `<ol class="guide-list"><li><strong>Request Orca’s pairing offer.</strong> The server can remain running.</li><li><strong>${id==='mobile'?'Pair in Orca Mobile.':'Add the server in your Mac client.'}</strong> ${id==='mobile'?'Scan the QR code created by Orca.':'Open Settings → Remote Orca Servers → Add Server and use Orca’s pairing link.'}</li><li><strong>Use LAN or VPN access.</strong> Keep pairing links private.</li></ol><details><summary>Native pairing command</summary>${command([id==='mobile'?'orca pair --mobile':'orca pair'])}<p class="guide-note">Orca creates the actual link and QR code. This demo creates no credentials.</p></details>${notice('Paired and online are different','A paired device can be offline. The pilot reports unknown when the native version exposes no reliable client census.','neutral')}`;
     if (id==='mcp') return `<ol class="guide-list"><li><strong>Use the existing community bridge.</strong> It runs alongside Orca and calls its native CLI.</li><li><strong>Expose Orca to external coordinators.</strong> This is the opposite direction to MCP servers used by Orca’s agents.</li><li><strong>Connect the OpenAI tunnel.</strong> The bridge is a separate component.</li></ol>${sourceLink('https://github.com/BuildContext/orca-mcp','Community MCP bridge')}${notice('Read-only check','MCP initialize, tool inventory and Orca health do not start an agent.','neutral')}`;
     return `<div class="flow" aria-label="Connection path"><b>ChatGPT / Codex</b><span>→</span><b>OpenAI Secure MCP Tunnel</b><span>→</span><b>Community bridge</b><span>→</span><b>Orca</b></div><ol class="guide-list"><li><strong>Use the selected OpenAI tunnel.</strong> Reuse its existing configuration and authentication.</li><li><strong>Connect the bridge as its target.</strong> The manager does not build another tunnel.</li><li><strong>Verify the whole path.</strong> A local process or open port does not prove end-to-end MCP access.</li></ol>${notice('Simulated integration','The real pilot keeps external tunnel status unverified until an authenticated call is observed.','neutral')}`;
   }
   function connection(id) {
     const s=services.find(s=>s.id===id),r=record(id);
-    return `<button class="back-button" data-action="navigate" data-page="connections">← All connections</button>`+heading('GUIDE & STATUS',s.title,s.description)
+    return (state.guided?setupButton('welcome','← Git accounts',true)+setupButton('launch','Continue to Orca →',true):setupButton('connections','← All connections',true))+heading('GUIDE & STATUS',s.title,s.description)
       +`<div class="detail-grid"><section class="panel"><span class="eyebrow">NATIVE SETUP</span><h2>Guide</h2>${guide(id)}</section><section class="panel"><div class="panel-top"><span class="eyebrow">SERVER OBSERVATION</span>${pill(r.label,r.status)}</div><h2>Check technical status</h2><p>This reads the state. It does not sign in or pair a device.</p>${r.stale?notice('The state changed','The previous result describes an earlier state. Refresh the observation.','warn'):''}${rows(r.rows||[['Status','Not verified']])}<button data-action="check" data-service="${id}"${disabled(state.busy)}>Refresh technical status</button>${checkTime(id)}<div class="demo-evidence"><label for="native-state">Demo control · state outside the manager</label><select id="native-state" data-service="${id}"${disabled(state.busy)}>${evidenceChoices[id].map(([v,label])=>`<option value="${v}"${state.evidence[id]===v?' selected':''}>${label}</option>`).join('')}</select><p>Simulate a native change. Refresh the status to reflect it in the dashboard.</p></div></section></div>`;
   }
   function server() {const r=record('server');return heading('BASIC OPERATION','Inspect the Orca server.','Optional integrations can be configured later.')+`<section class="panel">${pill(r.label,r.status)}${rows(r.rows||[['Status','Not verified']])}<button data-action="check" data-service="server"${disabled(state.busy)}>Refresh server status</button>${checkTime('server')}</section>`;}
@@ -114,12 +132,16 @@
   }
   function render(focus=false) {
     const active=services.some(s=>s.id===state.page)?'connections':state.page;
+    nav.hidden=state.guided;
     nav.innerHTML=[['overview','Overview'],['connections','Connections'],['updates','Versions & updates']].map(([page,title])=>`<button class="nav-button" data-action="navigate" data-page="${page}"${active===page||page==='overview'&&active==='server'?' aria-current="page"':''}>${title}</button>`).join('');
-    app.innerHTML=state.page==='overview'?overview():state.page==='connections'?connections():state.page==='updates'?updates():state.page==='server'?server():connection(state.page);
+    app.innerHTML=['welcome','launch'].includes(state.page)?welcome():state.page==='overview'?overview():state.page==='connections'?connections():state.page==='updates'?updates():state.page==='server'?server():connection(state.page);
     app.setAttribute('aria-busy',state.busy?'true':'false');
     if (focus) app.querySelector('h1')?.focus({preventScroll:true});
   }
-  function navigate(page) {if (!['overview','connections','updates','server',...services.map(s=>s.id)].includes(page)) return;state.page=page;render(true);scrollTo({top:0,behavior:'instant'});}
+  function navigate(page) {if (!['welcome','launch','overview','connections','updates','server',...services.map(s=>s.id)].includes(page)) return;
+    if (page==='welcome') state.guided=true;
+    if (page==='overview') state.guided=false;
+    state.page=page;render(true);scrollTo({top:0,behavior:'instant'});}
   async function check(ids) {
     if (state.busy) return;
     const ticket=generation;state.busy={kind:'check'};render();await wait(400);if(ticket!==generation)return;
@@ -159,6 +181,8 @@
     const button=event.target.closest('button[data-action]');if(!button||button.disabled)return;
     const {action,page,service}=button.dataset;
     if(action==='navigate')navigate(page);
+    else if(action==='preview-orca'){document.querySelector('#launch-result').textContent='In the live manager this opens the paired Orca WebUI in a new tab.';}
+    else if(action==='demo-forge'){document.querySelector('.demo-offer').textContent=service==='forgejo'?'In the live setup, copy the public key to your instance’s SSH key settings.':'The live setup shows a one-time code and a link to the official authorization page. No account is used in this preview.';}
     else if(action==='help')document.querySelector('#demo-help').showModal();
     else if(action==='close-help')document.querySelector('#demo-help').close();
     else if(action==='reset'){reset(state.scenario);notify('Current scenario reset.');}

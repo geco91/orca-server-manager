@@ -1,0 +1,7 @@
+<div class="launch-actions">
+{% if status.controller.available and status.runtime.web_url and not active_operation %}
+<form method="post" action="{{ url_for('prepare_web_pairing') }}" target="_blank" rel="noopener"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="open" value="1"><button>Open Orca WebUI ↗</button></form>
+{% elif orca_url %}<a class="button" href="{{ orca_url }}" target="_blank" rel="noopener noreferrer">Open Orca WebUI ↗</a>
+{% else %}<button disabled>Open Orca WebUI ↗</button><p class="hint">Waiting for a current WebUI connection from the server.</p>{% endif %}
+<a href="{{ url_for('web_pairing') }}">Pairing details &amp; manual fallback</a>
+</div>

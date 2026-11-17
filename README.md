@@ -27,7 +27,12 @@ For first-time administrator setup, copy the code from the **manager container �
 Summary → Notes** in Proxmox and enter it on the English HTTPS setup page. The
 host worker publishes the one-time code there and removes its copy after setup.
 
-Choose **Open and connect Orca WebUI** in the overview. The manager requests
+After signing in, **Connect your Git accounts** offers GitHub.com and GitLab.com
+device sign-in and SSH key setup for your Forgejo instance. You can connect
+several providers or continue immediately. The manager remembers your progress.
+Use **Revisit setup** on the overview to return later.
+
+Choose **Open Orca WebUI** in step two or at the top of the overview. The manager requests
 Orca's native browser-pairing link and opens the original WebUI in a new tab
 through its HTTPS endpoint. **Pairing details & manual fallback** provides the
 actual URL/code and instructions if needed; no terminal lookup is required.
@@ -36,13 +41,13 @@ desktop package; the runtime still runs the headless server, without Electron.
 Orca performs the pairing and confirms the connection. The manager login alone
 does not mean a browser is paired.
 
-OpenCode is included in the standard runtime image. On initial setup the runtime
-selects it as Orca's host default if no agent has been chosen; existing choices
-are preserved. Orca's WebUI additionally stores its default per browser: choose
-OpenCode in its agent picker and use **Set as default** once. Add model providers
-and API keys later through native OpenCode, for example `/connect` in a workspace.
-Installed/configured does not mean authenticated; the dashboard reports those
-observations separately. No provider account or key is fabricated.
+The standard runtime includes **OpenCode 2 v2.3.0** and selects Orca's native
+`opencode2` host preference on a fresh server. Existing workspaces can still
+launch OpenCode 1. A previously manager-selected OpenCode 1 default migrates to
+OpenCode 2 when the operator has kept it. In the WebUI's agent picker, right-click
+**OpenCode 2 → Set as default** once for that browser. Configure model access
+later in your workspace or with `opencode2 auth login` on the runtime.
+[Official OpenCode release](https://github.com/anomalyco/opencode/releases/tag/v2.3.0)
 
 The pilot starts with upstream [Orca 1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261),
 the current official release when checked for this pilot. It is not classified as stable or
@@ -61,7 +66,7 @@ is a manager-maintained approval list.
 
 ```bash
 # On the dedicated builder, from a clean checkout of the intended commit:
-python3 scripts/build-oci.py --version 1.4.261 --opencode-version 1.19.5 --manager --output /srv/orca-oci
+python3 scripts/build-oci.py --version 1.4.261 --opencode-version 2.3.0 --manager --output /srv/orca-oci
 # Creates private OCI archives and a source/checksum manifest. Does not publish.
 ```
 

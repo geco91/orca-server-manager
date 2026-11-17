@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Set up your server · Orca{% endblock %}
+{% block content %}
+<div class="setup-shell">
+<ol class="setup-progress" aria-label="Setup steps">
+<li {% if step == 'git' %}aria-current="step"{% endif %}><a href="{{ url_for('welcome', step='git') }}">1. Git accounts</a></li>
+<li {% if step == 'launch' %}aria-current="step"{% endif %}>2. Open Orca</li>
+</ol>
+{% if step == 'git' %}
+<h1>Connect your Git accounts</h1>
+<p class="setup-intro">Choose where you keep your repositories. You can connect more than one account provider, or set this up later.</p>
+<div class="forge-list">
+{% for key, provider in providers.items() %}{% set observed = status.integrations[key] %}
+<a class="forge-row" href="{{ url_for('git_provider', provider=key) }}"><span><strong>{{ provider.name }}</strong><small>{{ 'Signed in as ' ~ observed.checks[0].value if observed.state == 'ready' and observed.checks else 'Sign in with a browser code' if key != 'forgejo' else 'Use an SSH key with your instance' }}</small></span><span class="forge-action">{{ 'Manage' if observed.state == 'ready' else 'Set up' }} →</span></a>
+{% endfor %}
+</div>
+<form method="post" action="{{ url_for('continue_setup') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>Continue to Orca →</button></form>
+{% else %}
+<h1>Open your Orca workspace</h1>
+<p class="setup-intro">Open Orca in a new tab. The manager prepares the pairing link for this browser.</p>
+{% include '_open_orca.html' %}
+<section class="panel setup-agent"><h2>Your default agent</h2>
+{% for row in status.integrations.providers.checks if row.name == 'Host default agent' %}<p>Server preference <strong>{{ row.value }}</strong></p>{% else %}<p>Waiting for the server’s agent preference.</p>{% endfor %}
+<p>In Orca’s agent picker, right-click <strong>OpenCode 2</strong> and choose <strong>Set as default</strong> for this browser. Add model providers later in your workspace.</p>
+<a href="{{ url_for('connection', name='providers') }}">Agent settings &amp; status</a></section>
+<form method="post" action="{{ url_for('finish_setup') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="quiet">Finish setup &amp; go to overview →</button></form>
+{% endif %}
+</div>
+{% endblock %}
