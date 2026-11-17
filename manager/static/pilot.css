@@ -146,6 +146,10 @@ footer span { display: block; margin-top: 5px; }
 .check-row span { overflow-wrap: anywhere; }
 #web-pairing textarea { box-sizing: border-box; display: block; width: 100%; padding: 12px; margin: 8px 0 12px; resize: vertical; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: 13px/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
 #web-pairing details { margin: 18px 0; }
+#pairing-status.busy-text { font-size: 14px; }
+#pairing-status.busy-text::before { width: 16px; height: 16px; flex-shrink: 0; }
+#pairing-form button.busy-text { color: var(--bg); font-size: 14px; }
+#pairing-form button.busy-text::before { border-color: currentColor; border-top-color: transparent; flex-shrink: 0; }
 
 .section-gap { margin-top: 20px; }
 
