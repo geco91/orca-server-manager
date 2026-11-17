@@ -23,6 +23,10 @@ It requires explicit unused IDs, an assigned builder, existing storage/network
 and an empty dedicated data filesystem. It never formats a disk or replaces an
 existing guest. No public image registry or user GitHub pairing is needed.
 
+For first-time administrator setup, copy the code from the **manager container →
+Summary → Notes** in Proxmox and enter it on the English HTTPS setup page. The
+host worker publishes the one-time code there and removes its copy after setup.
+
 The pilot starts with upstream [Orca 1.4.261](https://github.com/stablyai/orca/releases/tag/v1.4.261),
 the current official release when checked for this pilot. It is not classified as stable or
 approved by this project. Later versions are selected directly from Orca's

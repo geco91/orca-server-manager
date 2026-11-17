@@ -6,7 +6,7 @@ Updated 17 November 2026. See [original brief](PROJECT_BRIEF.md) and the
 | Area | Implemented and observed | Remaining checks |
 | --- | --- | --- |
 | Runtime | Official 1.4.261 server bundle/checksums, UID 1000, native PVE OCI import/start, RPC and graceful replacement | User workload behavior and other architectures |
-| Manager | English default, verified HTTPS, bootstrap/login, sessions, CSRF, throttling, responsive guides/status; reachable throughout native lifecycle trial | Operator's own administrator setup and usability feedback |
+| Manager | English default, verified HTTPS, first-time code in Proxmox Summary Notes, bootstrap/login, sessions, CSRF, throttling, responsive guides/status; reachable throughout native lifecycle trial | Operator's own administrator setup and usability feedback |
 | Native integrations | Pinned Codex/OpenCode CLIs execute; account/GitHub probes; optional native setup guides | Actual sign-in, first user-started agent task, repository access and Mac/mobile pairing |
 | Versions | Official release pages and upstream labels, selectable versions; private 1.4.261 and 1.4.259 builds | Availability of packages for other user-selected versions |
 | Update/rollback | Real native version changes, software-only rollback retaining newer data, full rollback restoring saved data; generation fences and interruption handling | Recovery under further host/storage failure scenarios and operator experience |

@@ -7,13 +7,16 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
 ## Implementation and builds
 
 - `uv sync --frozen` and Ruff lint/format checks: passed.
-- `uv run pytest -q`: **45 passed**. Covers authentication/CSRF/session reset,
+- `uv run pytest -q`: **55 passed**. Covers authentication/CSRF/session reset,
   official source/version validation, stale status and bounded queue handling,
   generation fences, active/unknown terminal blocking, rollback modes, failed
   backup/start, ownership markers, interrupted data swap recovery, mapped-root
   image staging, restrictive umasks and guarded initial-install resumption.
+  Ten setup-Notes checks cover private mapped-owner reads, symlink/hardlink and
+  unsafe-file rejection, marker/operator-note preservation, idempotence, consumed
+  code removal and keeping secrets out of argv/output/error messages.
 - Clean operational source:
-  `d43ac1c7748c2e52014994c21a6548ce26927f01`. Its GitHub Actions checks passed.
+  `d78750b82f21ecd3738e26c3c9fe4e6ca349ea33`. Its GitHub Actions checks passed.
   The dedicated builder's final private OCI export also exited zero and recorded
   that clean source commit plus upstream/archive SHA-256 digests. Later
   documentation-only commits do not change the deployed worker source.
@@ -59,12 +62,20 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
   sessions and left fresh first-administrator setup for the operator. TLS
   persisted. Credentials were not exported to the builder; authenticated UI
   tests stayed inside the original manager CT.
+- The setup-Notes refinement was deployed to the existing manager and host
+  worker. Real Proxmox Notes contain the pending code matching the private source
+  file and retain the ownership marker. Verified HTTPS serves the new English
+  **Summary → Notes** hint and does not expose the code in its unauthenticated
+  HTML. The code was left pending for the operator's own setup. Automatic cleanup
+  after consumption is covered by the setup-Notes tests above.
 
-The initial native CTs came from the immediately preceding clean image build;
-the final runtime PATH correction was applied to native CT configuration. The
-current worker uses the clean operational source above. The final private image
-export includes that same correction for subsequent imports. Private build
-manifests retain the exact provenance of each archive.
+The initial native CTs came from the clean `e14bab3` image build; the runtime PATH
+correction was applied to native CT configuration. Native update/rollback trials
+used worker source `d43ac1c`. The current worker uses the clean operational source
+above. Its manager setup template was synchronized into the existing manager CT
+and the application workers were gracefully reloaded, preserving its data, TLS
+and address. The final private image export includes the same source for future
+imports. Private build manifests retain the exact provenance of each archive.
 
 Not exercised: provider sign-in, a user-started agent task, Mac/mobile pairing,
 repository writes, a dedicated external OpenAI tunnel profile or authenticated
