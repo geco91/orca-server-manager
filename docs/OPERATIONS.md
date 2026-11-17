@@ -2,15 +2,27 @@
 
 ## Administrator and HTTPS
 
-The manager starts independently of the Orca runtime. In the native deployment,
-read its one-time token from an authorized Proxmox administrator terminal:
+The manager starts independently of the Orca runtime. In Proxmox, select the
+**manager container → Summary → Notes** and copy its **First-time setup code**.
+Open the manager guest's HTTPS address and enter that code with your own
+14–256 character password. No container console or filesystem lookup is needed.
+
+The host worker publishes the code to that container's Notes, preserving its
+ownership marker and operator notes. It never puts the code in command arguments,
+logs, status JSON or images. The code becomes invalid immediately after successful
+setup; its Notes copy is removed on the next worker pass. A new administrator
+reset code is published in the same way. Anyone allowed to read the container's
+Proxmox configuration can see a pending setup code; keep that access appropriate.
+
+If the manager is still starting, refresh Notes shortly. For another deployment
+or administrator recovery, the console command remains available:
 
 ```bash
 pct exec MANAGER_CT_ID -- cat /data/manager/bootstrap.token
 ```
 
-Open the manager guest's HTTPS address, verify its certificate and choose your
-own 14–256 character password. The token is removed after setup. Existing
+Verify the manager's HTTPS certificate before setup. The token file is removed
+after setup. Existing
 certificates and the manager's SQLite/session files survive recreation. For an
 administrator password reset, use the local terminal, never an unauthenticated
 web action:

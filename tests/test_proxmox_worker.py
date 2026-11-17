@@ -89,6 +89,7 @@ def deployment(tmp_path, monkeypatch):
     archive.write_bytes(b"disposable image fixture")
     archive.chmod(0o600)
     monkeypatch.setattr(worker, "build", lambda version: archive)
+    monkeypatch.setattr("deploy.proxmox.worker.sync_setup_notes", lambda _: None)
     monkeypatch.setattr("deploy.proxmox.worker.os.chown", lambda *_: None)
     return worker, pve
 

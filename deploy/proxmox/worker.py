@@ -19,6 +19,7 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from deploy.proxmox.notes import SetupNotesError, sync_setup_notes
 from manager.control import JOB_ID, ControlError, atomic_document, read_document, utc_now
 from manager.releases import resolve_release, validate_version
 
@@ -593,6 +594,11 @@ class Worker:
             self.publish_status()
 
     def tick(self):
+        try:
+            sync_setup_notes(self.cfg)
+        except SetupNotesError as error:
+            # Notes failures do not block runtime recovery. Error text contains no secret.
+            print(str(error), file=sys.stderr)
         self.inflight.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.repair_interrupted_data_swap()
         # Do not silently replay requests that may already have changed a container.

@@ -50,6 +50,14 @@ directory; TLS keys remain in a separate root-only subdirectory. Sanitized statu
 files explicitly receive their intended readable mode despite the worker's
 private default umask. Native probes use absolute administrative executable paths.
 
+For first administrator setup, the worker copies only the one-time code to the
+assigned manager container's Proxmox Summary Notes. It validates the mapped-owner
+private file without following guest-controlled links and bounds its size/format.
+A locked compare-and-set preserves unrelated Notes and the exact ownership marker;
+the code travels through a local stdin pipe, never argv, logs or status snapshots.
+Once consumed, its Notes copy is removed on the next worker pass. This deliberately
+allows readers of that container's Proxmox configuration to use a pending code.
+
 ## Version changes
 
 Orca release labels, tags and pre-release flags are read from

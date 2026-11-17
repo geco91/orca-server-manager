@@ -97,7 +97,10 @@ explicit implementation review before use.
 ## First trial
 
 Read the guest IPs from PVE, open the manager via HTTPS and follow the native
-setup guides. The exact bootstrap command and native shell commands are in
+setup guides. Copy the first-time setup code from the **manager container →
+Summary → Notes**; the installer/host worker publishes it there and removes the
+copy after it is consumed. The ownership marker and operator notes are preserved.
+No token is printed to installation logs or command arguments. Console recovery and native commands are in
 [OPERATIONS.md](../../docs/OPERATIONS.md). Reserve the DHCP leases; the runtime
 MAC is reused across replacements. Install/trust a certificate matching your
 actual manager address. Restrict access to the intended LAN/VPN.

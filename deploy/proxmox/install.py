@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from deploy.proxmox.notes import SetupNotesError, sync_setup_notes
 from deploy.proxmox.worker import DeploymentError, Worker, load_config, run
 from manager.control import atomic_document, read_document
 
@@ -127,6 +128,7 @@ def apply(cfg, source_config, archive_dir, resume=False):
     for path in [
         ROOT,
         ROOT / "deploy/proxmox/worker.py",
+        ROOT / "deploy/proxmox/notes.py",
         ROOT / "manager/control.py",
         ROOT / "manager/releases.py",
     ]:
@@ -199,6 +201,13 @@ def apply(cfg, source_config, archive_dir, resume=False):
     run(["pct", "set", str(cfg["runtime_id"]), "--onboot", "1"])
     run(["pct", "start", str(cfg["runtime_id"])], timeout=90)
     run(["pct", "start", str(cfg["manager_id"])], timeout=90)
+    try:
+        sync_setup_notes(cfg)
+    except SetupNotesError:
+        print(
+            "The host worker will retry publishing the setup code to manager Notes.",
+            file=sys.stderr,
+        )
     worker.publish_status()
     unit = Path("/etc/systemd/system")
     for suffix in ["service", "timer"]:
@@ -214,7 +223,12 @@ def apply(cfg, source_config, archive_dir, resume=False):
         destination.write_text(content)
     run(["systemctl", "daemon-reload"])
     run(["systemctl", "enable", "--now", f"orca-manager-{cfg['installation']}.timer"])
-    print("Installed. Read guest IPs in Proxmox; verify HTTPS, then complete native Orca setup.")
+    print(
+        "Installed. Open the manager's HTTPS address and copy the setup code from its Proxmox Summary → Notes."
+    )
+    print(
+        "The host worker refreshes these Notes as the manager starts and removes the code after setup."
+    )
 
 
 def main():

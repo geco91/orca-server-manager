@@ -8,8 +8,12 @@
 <form method="post">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {% if bootstrap %}
-<label for="token">Setup token</label><input id="token" name="token" type="password" autocomplete="off" required>
-<p class="hint">Read the one-time token from the manager's persistent data directory using your deployment's administrator console. The deployment guide contains the exact command. The token is removed after setup.</p>
+<label for="token">Setup code</label><input id="token" name="token" type="password" autocomplete="off" required>
+<p class="hint">In Proxmox, select the manager container and open <strong>Summary → Notes</strong>. Copy the one-time setup code shown there.</p>
+<p class="hint">The code expires after setup. The host worker removes its copy from Notes on the next pass.</p>
+<details><summary>Using Docker or another deployment?</summary>
+<p class="hint">Follow your deployment guide to retrieve the one-time code from the administrator console.</p>
+</details>
 {% endif %}
 <label for="password">Administrator password</label>
 <input id="password" name="password" type="password" minlength="{{ 14 if bootstrap else 1 }}" maxlength="256" autocomplete="{{ 'new-password' if bootstrap else 'current-password' }}" required>
