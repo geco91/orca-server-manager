@@ -23,6 +23,7 @@ from manager.control import (
     read_document,
 )
 from manager.links import public_web_url
+from manager.opencode_releases import list_releases as list_opencode_releases
 from manager.pairing import PAIRING_TTL, PairingError
 from manager.releases import ReleaseError, list_releases, upgrades_only
 
@@ -231,6 +232,7 @@ def create_app(test_config=None):
             if connected
             else snapshot["controller"]["detail"],
             "version": str(raw_runtime.get("version") or "Unknown")[:80],
+            "opencode_version": str(raw_runtime.get("opencode_version") or "Unknown")[:80],
             "active_terminals": raw_runtime.get("active_terminals"),
             "web_url": public_web_url(raw_runtime.get("web_url")),
         }
@@ -264,6 +266,10 @@ def create_app(test_config=None):
             "deployment": {
                 "version": str(deployment.get("version") or runtime["version"])[:80],
                 "previous_version": str(deployment.get("previous_version") or "")[:80],
+                "opencode_version": runtime["opencode_version"],
+                "previous_opencode_version": str(deployment.get("previous_opencode_version") or "")[
+                    :80
+                ],
                 "backup_at": str(deployment.get("backup_at") or "")[:80],
                 "backend": "Proxmox OCI",
                 "generation": deployment.get("generation", 0),
@@ -424,39 +430,57 @@ def create_app(test_config=None):
             result=snapshot["runtime"] if name == "server" else snapshot["integrations"][name],
         )
 
-    @app.get("/updates")
-    @login_required
-    def updates():
-        try:
-            page = int(request.args.get("page", "1"))
-            if not 1 <= page <= 100:
-                raise ValueError
-        except ValueError:
-            abort(400)
-        cache = state / f"releases-{page}.json"
-        release_error = None
-        releases = {"releases": [], "has_more": False, "page": page}
+    def cached_catalog(prefix, fetcher, page):
+        cache = state / f"{prefix}-{page}.json"
+        empty = {"releases": [], "has_more": False, "page": page}
         try:
             saved = read_document(cache)
         except ControlError:
             saved = {}
         try:
-            if time.time() - saved.get("fetched_at", 0) < 600:
-                releases = saved["data"]
+            if time.time() - saved.get("fetched_at", 0) < 600 and "data" in saved:
+                data = saved["data"]
             else:
-                releases = list_releases(page, app.config["ARCHITECTURE"])
-                atomic_document(cache, {"fetched_at": time.time(), "data": releases})
+                data = fetcher(page, app.config["ARCHITECTURE"])
+                atomic_document(cache, {"fetched_at": time.time(), "data": data})
+            return data, None
         except (ReleaseError, OSError) as error:
-            release_error = str(error)
-            releases = saved.get("data", releases)
+            return saved.get("data", empty), str(error)
+
+    @app.get("/updates")
+    @login_required
+    def updates():
+        try:
+            page = int(request.args.get("page", "1"))
+            opencode_page = int(request.args.get("opencode_page", "1"))
+            if not 1 <= page <= 100 or not 1 <= opencode_page <= 100:
+                raise ValueError
+        except ValueError:
+            abort(400)
+        releases, release_error = cached_catalog("releases", list_releases, page)
+        opencode_releases, opencode_error = cached_catalog(
+            "opencode-releases", list_opencode_releases, opencode_page
+        )
         snapshot = current_status()
         try:
             releases = upgrades_only(releases, snapshot["deployment"]["version"])
         except ReleaseError:
             releases = {"releases": [], "has_more": False, "page": page}
             release_error = "The installed version is not known yet. Refresh the runtime status before choosing an upgrade."
+        try:
+            opencode_releases = upgrades_only(
+                opencode_releases, snapshot["runtime"]["opencode_version"]
+            )
+        except ReleaseError:
+            opencode_releases = {"releases": [], "has_more": False, "page": opencode_page}
+            opencode_error = "The installed OpenCode version is not known yet. Refresh the runtime status before choosing an upgrade."
         return render_template(
-            "updates.html", status=snapshot, releases=releases, release_error=release_error
+            "updates.html",
+            status=snapshot,
+            releases=releases,
+            release_error=release_error,
+            opencode_releases=opencode_releases,
+            opencode_error=opencode_error,
         )
 
     def queue_operation(action, version=None, restore_data=False):
@@ -491,6 +515,15 @@ def create_app(test_config=None):
         if request.form.get("work_stopped") != "1":
             abort(400, "Stop current work in Orca before changing its container.")
         return queue_operation("update", request.form.get("version", ""))
+
+    @app.post("/actions/update-opencode")
+    @login_required
+    def update_opencode():
+        if request.form.get("work_stopped") != "1":
+            abort(
+                400, "Stop current work in Orca, including OpenCode, before changing its container."
+            )
+        return queue_operation("update_opencode", request.form.get("version", ""))
 
     @app.post("/actions/rollback")
     @login_required

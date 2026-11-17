@@ -13,6 +13,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from manager.opencode_releases import DEFAULT_VERSION
+from manager.opencode_releases import resolve_release as resolve_opencode
 from manager.releases import resolve_release
 
 
@@ -55,6 +57,7 @@ def main():
     parser.add_argument("--version", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--manager", action="store_true")
+    parser.add_argument("--opencode-version", default=DEFAULT_VERSION)
     parser.add_argument("--ca-file", type=Path)
     args = parser.parse_args()
     args.output = args.output.resolve()
@@ -65,6 +68,7 @@ def main():
     except BlockingIOError:
         parser.error("Another OCI build is already using this output directory.")
     release = resolve_release(args.version)
+    opencode = resolve_opencode(args.opencode_version)
     common = ["docker", "build"]
     if args.ca_file:
         common += ["--secret", f"id=proxy_ca,src={args.ca_file.resolve()}"]
@@ -96,6 +100,10 @@ def main():
             with_tools,
             "--build-arg",
             f"RUNTIME_IMAGE={runtime}",
+            "--build-arg",
+            f"OPENCODE_VERSION={opencode['version']}",
+            "--build-arg",
+            f"OPENCODE_SHA256={opencode['sha256']}",
             ".",
         ]
     )
@@ -114,6 +122,8 @@ def main():
         "orca_version": version,
         "upstream_sha256": release["sha256"],
         "upstream_web_sha256": release["web_sha256"],
+        "opencode_version": opencode["version"],
+        "opencode_sha256": opencode["sha256"],
         "source_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip(),

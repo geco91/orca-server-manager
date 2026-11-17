@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="page-heading"><div><span class="eyebrow">VERSIONS &amp; OPERATION</span><h1>Upgrade Orca. Keep a return path.</h1><p>Choose a newer release from Orca's official sources. The manager arranges the upgrade and saves a return point. You try the chosen version yourself.</p></div></div>
+<div class="page-heading"><div><span class="eyebrow">VERSIONS &amp; OPERATION</span><h1>Upgrade server software. Keep a return path.</h1><p>Choose a newer Orca or OpenCode release from its official sources. The manager arranges the upgrade and saves a return point. You try the chosen version yourself.</p></div></div>
 {% if release_error %}<div class="notice warn"><strong>Release information could not be refreshed.</strong><p>{{ release_error }}{% if releases.releases %} Previously retrieved data is shown.{% endif %}</p></div>{% endif %}
 {% if not status.controller.available %}<div class="notice neutral"><strong>Deployment worker not connected</strong><p>{{ status.controller.detail }} No version change can be started until the worker is available.</p></div>{% endif %}
 <div class="update-grid">
-<section class="panel"><span class="eyebrow">OFFICIAL ORCA RELEASES</span><div class="metric-row"><div class="metric"><span>Currently installed</span><strong>{{ status.deployment.version }}</strong></div><div class="metric"><span>Deployment</span><strong>{{ status.deployment.backend }}</strong></div></div>
+<div><section class="panel"><span class="eyebrow">OFFICIAL ORCA RELEASES</span><div class="metric-row"><div class="metric"><span>Currently installed</span><strong>{{ status.deployment.version }}</strong></div><div class="metric"><span>Deployment</span><strong>{{ status.deployment.backend }}</strong></div></div>
 <form method="post" action="{{ url_for('update') }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <div class="release-list" role="radiogroup" aria-label="Orca upgrade version">
@@ -16,13 +16,24 @@
 <button{% if not status.controller.available or active_operation or not releases.releases %} disabled{% endif %}>Upgrade to selected version</button>
 </form>
 <p class="small-label">The selected server package is used to build the OCI image. This is a deployment step, not a local approval or stability rating.</p>
-<div class="button-row">{% if releases.page > 1 %}<a href="{{ url_for('updates', page=releases.page - 1) }}">← Previous upgrade page</a>{% endif %}{% if releases.has_more %}<a href="{{ url_for('updates', page=releases.page + 1) }}">More upgrades →</a>{% endif %}</div>
+<div class="button-row">{% if releases.page > 1 %}<a href="{{ url_for('updates', page=releases.page - 1, opencode_page=opencode_releases.page) }}">← Previous upgrade page</a>{% endif %}{% if releases.has_more %}<a href="{{ url_for('updates', page=releases.page + 1, opencode_page=opencode_releases.page) }}">More upgrades →</a>{% endif %}</div>
 </section>
+<section class="panel section-gap"><span class="eyebrow">OFFICIAL OPENCODE RELEASES</span><div class="metric-row"><div class="metric"><span>Currently installed</span><strong>{{ status.runtime.opencode_version }}</strong></div><div class="metric"><span>Orca version kept</span><strong>{{ status.deployment.version }}</strong></div></div>
+{% if opencode_error %}<p class="notice warn">{{ opencode_error }}</p>{% endif %}
+<form method="post" action="{{ url_for('update_opencode') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="release-list" role="radiogroup" aria-label="OpenCode upgrade version">
+{% for release in opencode_releases.releases %}<label class="release-option"><input type="radio" name="version" value="{{ release.version }}" required{% if not release.package_available %} disabled{% endif %}><span class="release-copy"><strong>{{ release.tag }}</strong><span>{{ 'Pre-release' if release.prerelease else 'Release' }} · {{ release.published_at }}</span><span>{{ 'Official package available' if release.package_available else 'No checksummed package for this platform' }}</span></span><a href="{{ release.url }}" target="_blank" rel="noopener noreferrer">Notes ↗</a></label>
+{% else %}<p>No newer OpenCode releases are available on this page.</p>{% endfor %}
+</div><label class="rollback-option"><input type="checkbox" name="work_stopped" value="1" required><span>I have stopped current work in Orca, including OpenCode sessions.</span></label>
+<button{% if not status.controller.available or active_operation or not opencode_releases.releases %} disabled{% endif %}>Upgrade OpenCode to selected version</button></form>
+<p class="small-label">OpenCode is part of the runtime image. This upgrade restarts Orca and saves the previous software and data. Later Orca upgrades keep the selected OpenCode version.</p>
+<div class="button-row">{% if opencode_releases.page > 1 %}<a href="{{ url_for('updates', page=releases.page, opencode_page=opencode_releases.page - 1) }}">← Previous OpenCode page</a>{% endif %}{% if opencode_releases.has_more %}<a href="{{ url_for('updates', page=releases.page, opencode_page=opencode_releases.page + 1) }}">More OpenCode upgrades →</a>{% endif %}</div>
+</section></div>
 <div>
-<section class="panel"><span class="eyebrow">ORDERED PROCESS</span><ol class="update-process"><li><span class="process-mark">1</span><div>Prepare the selected image<small>Use the package and checksum published by Orca.</small></div></li><li><span class="process-mark">2</span><div>Keep a consistent return point<small>Stop the runtime and preserve its previous software and data.</small></div></li><li><span class="process-mark">3</span><div>Replace the runtime container<small>Keep the manager available while the runtime changes.</small></div></li><li><span class="process-mark">4</span><div>Start Orca<small>Observe its state. Try it yourself in Orca.</small></div></li></ol><p class="small-label">Live terminals defer the change. Stop native chat tasks in Orca too; they may not appear in the terminal census.</p></section>
+<section class="panel"><span class="eyebrow">ORDERED PROCESS</span><ol class="update-process"><li><span class="process-mark">1</span><div>Prepare the selected image<small>Use the selected package and checksum from the official project.</small></div></li><li><span class="process-mark">2</span><div>Keep a consistent return point<small>Stop the runtime and preserve its previous software and data.</small></div></li><li><span class="process-mark">3</span><div>Replace the runtime container<small>Keep the manager available while the runtime changes.</small></div></li><li><span class="process-mark">4</span><div>Start Orca<small>Observe its state. Try it yourself in Orca.</small></div></li></ol><p class="small-label">Live terminals defer the change. Stop native chat tasks in Orca too; they may not appear in the terminal census.</p></section>
 <section class="panel section-gap"><span class="eyebrow">ROLLBACK</span><h2>Keep the previous state.</h2>
 {% if status.deployment.previous_version %}
-<div class="recovery-version">Orca {{ status.deployment.previous_version }}</div><p>Data backup: {{ status.deployment.backup_at }}</p>
+<div class="recovery-version">Orca {{ status.deployment.previous_version }}{% if status.deployment.previous_opencode_version %} · OpenCode {{ status.deployment.previous_opencode_version }}{% endif %}</div><p>Data backup: {{ status.deployment.backup_at }}</p>
 <form method="post" action="{{ url_for('rollback') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label class="rollback-option"><input type="radio" name="mode" value="software" required><span><strong>Switch software only</strong><small>Keep newer data. Older software may not be able to read it. A software change does not undo a data migration.</small></span></label>
 <label class="rollback-option"><input type="radio" name="mode" value="data" required><span><strong>Restore software and saved data</strong><small>This discards changes made since the backup, including changes to saved workspaces and account or pairing state.</small></span></label>

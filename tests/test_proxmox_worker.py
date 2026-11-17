@@ -21,6 +21,10 @@ class PVE:
         self.backup_fails = False
         self.on_create = None
         self.owned = True
+        self.software = {201: ("1.4.259", "1.19.5")}
+        self.next_software = ("1.4.261", "1.19.5")
+        self.builds = []
+        self.next_id = 203
 
     def __call__(self, args, **_):
         self.commands.append(args)
@@ -30,16 +34,21 @@ class PVE:
         if args[:2] == ["qm", "config"]:
             return "description: unrelated builder\n"
         if args[:2] == ["pvesh", "get"]:
-            return "203\n"
+            vmid = self.next_id
+            self.next_id += 1
+            return f"{vmid}\n"
         if args[:2] == ["pct", "status"]:
             return "status: " + ("running" if self.running[int(args[2])] else "stopped")
         if args[:2] == ["pct", "exec"]:
+            if args[-1] == "--version":
+                return self.software[int(args[2])][1] + "\n"
             return json.dumps(
                 {
                     "schema": 1,
                     "runtime": {
                         "reachable": True,
-                        "version": "1.4.261",
+                        "version": self.software[int(args[2])][0],
+                        "opencode_version": self.software[int(args[2])][1],
                         "active_terminals": self.terminals,
                         "web_url": "http://192.168.50.25:6768/web-index.html",
                     },
@@ -48,6 +57,7 @@ class PVE:
             )
         if args[:2] == ["pct", "create"]:
             self.running[int(args[2])] = False
+            self.software[int(args[2])] = self.next_software
             if self.on_create:
                 self.on_create()
         if args[:2] == ["pct", "shutdown"]:
@@ -90,7 +100,13 @@ def deployment(tmp_path, monkeypatch):
     archive = tmp_path / "runtime.oci.tar"
     archive.write_bytes(b"disposable image fixture")
     archive.chmod(0o600)
-    monkeypatch.setattr(worker, "build", lambda version: archive)
+
+    def build(version, opencode_version):
+        pve.next_software = (version, opencode_version)
+        pve.builds.append((version, opencode_version))
+        return archive
+
+    monkeypatch.setattr(worker, "build", build)
     monkeypatch.setattr("deploy.proxmox.worker.sync_setup_notes", lambda _: None)
     monkeypatch.setattr("deploy.proxmox.worker.os.chown", lambda *_: None)
     return worker, pve
@@ -423,3 +439,110 @@ def test_web_pairing_cannot_smuggle_another_origin_or_a_shell_command():
     assert validate_request(value, value["id"])["action"] == "pair_web"
     with pytest.raises(DeploymentError):
         validate_request(value | {"origin": "https://external.invalid"}, value["id"])
+
+
+def provider_job(version="1.19.6", generation=2):
+    return job() | {
+        "id": "c" * 32,
+        "action": "update_opencode",
+        "version": version,
+        "generation": generation,
+    }
+
+
+def test_opencode_upgrade_keeps_orca_and_records_the_previous_pair(deployment):
+    worker, pve = deployment
+    request = provider_job()
+    worker.execute(request)
+    assert outcome(worker, request) == "completed"
+    assert (worker.cfg["version"], worker.cfg["opencode_version"]) == ("1.4.259", "1.19.6")
+    assert pve.builds == [("1.4.259", "1.19.6")]
+    assert worker.cfg["previous"]["version"] == "1.4.259"
+    assert worker.cfg["previous"]["opencode_version"] == "1.19.5"
+    worker.execute(job(generation=3))
+    assert outcome(worker, job()) == "completed"
+    assert worker.cfg["runtime_id"] == 204
+    assert worker.cfg["opencode_version"] == "1.19.6"
+    assert pve.builds == [("1.4.259", "1.19.6"), ("1.4.261", "1.19.6")]
+
+
+@pytest.mark.parametrize("restore", [False, True])
+def test_opencode_rollback_restores_software_and_respects_the_data_policy(deployment, restore):
+    worker, pve = deployment
+    worker.execute(provider_job())
+    (worker.workspaces / "work").write_text("after-provider-upgrade")
+    request = job("rollback", restore, generation=3)
+    worker.execute(request)
+    assert outcome(worker, request) == "completed"
+    assert worker.cfg["opencode_version"] == "1.19.5"
+    assert worker.cfg["version"] == "1.4.259"
+    assert pve.running[201] and not pve.running[203]
+    expected = "before-update" if restore else "after-provider-upgrade"
+    assert (worker.workspaces / "work").read_text() == expected
+
+
+@pytest.mark.parametrize("version", ["1.19.4", "1.19.5", "1.19.5-beta.1"])
+def test_forged_opencode_downgrades_fail_before_build_or_mutation(deployment, version):
+    worker, pve = deployment
+    request = provider_job(version)
+    worker.execute(request)
+    assert outcome(worker, request) == "failed"
+    assert not pve.builds
+    assert not any(args[:2] in [["pct", "create"], ["pct", "shutdown"]] for args in pve.commands)
+
+
+def test_unknown_opencode_version_blocks_both_upgrade_paths(deployment, monkeypatch):
+    worker, pve = deployment
+    observed = worker.probe()
+    observed["runtime"]["opencode_version"] = None
+    monkeypatch.setattr(worker, "probe", lambda: observed)
+    for request in [provider_job(), job()]:
+        worker.execute(request)
+        assert outcome(worker, request) == "failed"
+    assert not pve.builds
+    assert pve.running[201]
+
+
+def test_start_readiness_confirms_the_selected_opencode_version(deployment):
+    worker, _ = deployment
+    worker.cfg["opencode_version"] = "1.20.0"
+    assert not worker.wait_start(timeout=0.01)
+
+
+@pytest.mark.parametrize("changed", [{"opencode_version": "1.19.5"}, {"opencode_sha256": "f" * 64}])
+def test_build_rejects_a_mismatched_opencode_manifest(deployment, monkeypatch, tmp_path, changed):
+    worker, pve = deployment
+    worker.cfg.update(source_commit="e" * 40, ssh_config=str(tmp_path / "ssh-config"))
+    monkeypatch.setattr(worker, "own_builder", lambda: None)
+    monkeypatch.setattr(
+        "deploy.proxmox.worker.resolve_release",
+        lambda _: {"sha256": "a" * 64, "web_sha256": "b" * 64},
+    )
+    monkeypatch.setattr("deploy.proxmox.worker.resolve_opencode", lambda _: {"sha256": "c" * 64})
+    commands = []
+
+    def run(args, **kwargs):
+        commands.append(args)
+        if args[:2] == ["qm", "status"]:
+            return "status: running"
+        if args[0] == "scp" and args[-1].endswith(".json"):
+            atomic_document(
+                Path(args[-1]),
+                {
+                    "source_dirty": False,
+                    "source_commit": "e" * 40,
+                    "orca_version": "1.4.261",
+                    "upstream_sha256": "a" * 64,
+                    "upstream_web_sha256": "b" * 64,
+                    "opencode_version": "1.19.6",
+                    "opencode_sha256": "c" * 64,
+                    **changed,
+                },
+            )
+        return ""
+
+    monkeypatch.setattr(worker, "run", run)
+    with pytest.raises(DeploymentError, match="OpenCode package"):
+        Worker.build(worker, "1.4.261", "1.19.6")
+    assert any(args[0] == "ssh" and "--opencode-version 1.19.6" in args[-1] for args in commands)
+    assert not pve.commands

@@ -123,8 +123,8 @@ through a separate private, session-owned endpoint.
 
 ## Update and rollback
 
-1. Open **Versions & updates**. The paginated list comes from official Orca
-   releases with upstream pre-release labels and links. Only versions newer than
+1. Open **Versions & updates**. Separate paginated Orca and OpenCode lists come
+   from their official releases with upstream pre-release labels and links. Only versions newer than
    the installed version appear; no local stable/approved list exists. Releases lacking a
    checksummed server package for this platform cannot be built by this pilot.
 2. Stop work in Orca, including native chat tasks. The live terminal census is
@@ -138,6 +138,15 @@ through a separate private, session-owned endpoint.
    software only** (keep newer data, migrations remain) or **Restore software and
    saved data** (discard newer active changes, including profile/account/pairing
    state). Neither mode promises older software can read newer data.
+
+OpenCode updates replace the runtime image while keeping the installed Orca
+version. Later Orca updates keep the selected OpenCode version. The saved return
+point records both versions plus the consistent data backup. Provider credentials
+remain in runtime HOME; no keys need to be re-entered for an image upgrade.
+The image installs OpenCode in root-owned `/usr/local/bin`. Its inspected 1.19.5
+curl updater targets a user-home installation and provides no saved return point,
+so this deployment uses the common image update process. Avoid shadowing the
+image binary with a separate home-directory install.
 
 One operation is active across browser sessions; the worker also checks the
 installation generation. Interrupted operations are recorded and not blindly

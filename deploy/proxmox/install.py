@@ -133,6 +133,7 @@ def apply(cfg, source_config, archive_dir, resume=False):
         ROOT / "manager/control.py",
         ROOT / "manager/pairing.py",
         ROOT / "manager/releases.py",
+        ROOT / "manager/opencode_releases.py",
     ]:
         if path.is_symlink() or path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
             raise DeploymentError("The host worker checkout must be administrator-owned.")
@@ -161,6 +162,7 @@ def apply(cfg, source_config, archive_dir, resume=False):
         or metadata.get("source_dirty")
         or metadata.get("source_commit") != commit
         or metadata.get("orca_version") != cfg["version"]
+        or metadata.get("opencode_version") != cfg["opencode_version"]
     ):
         raise DeploymentError(
             "Installer, configuration and OCI manifest must name the same clean source."

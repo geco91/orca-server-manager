@@ -34,13 +34,20 @@ def controller_files(path):
         {
             "schema": 1,
             "observed_at": utc_now(),
-            "runtime": {"reachable": True, "version": "1.4.259", "active_terminals": 0},
+            "runtime": {
+                "reachable": True,
+                "version": "1.4.259",
+                "opencode_version": "1.19.5",
+                "active_terminals": 0,
+            },
             "integrations": {"github": {"state": "partial", "label": "Not signed in"}},
             "deployment": {
                 "version": "1.4.259",
                 "runtime_id": 201,
                 "generation": 3,
                 "previous_version": "1.4.258",
+                "opencode_version": "1.19.5",
+                "previous_opencode_version": "1.19.4",
                 "backup_at": utc_now(),
             },
         },

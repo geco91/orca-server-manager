@@ -19,6 +19,7 @@ orca account list --json</code></pre></details>
 <p class="guide-note">Login screens belong to Orca and the provider. The manager does not ask for API keys or passwords.</p>
 <a href="https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/account.ts" target="_blank" rel="noopener noreferrer">Orca account commands ↗</a>
 <a href="https://opencode.ai/docs/config/" target="_blank" rel="noopener noreferrer">OpenCode project configuration ↗</a>
+<h2>OpenCode updates</h2><p>Use <a href="{{ url_for('updates') }}">Versions &amp; updates</a> for the image-supplied OpenCode CLI. Choose a newer official version; the manager saves the previous software and data before restarting the runtime. Later Orca upgrades keep your selected OpenCode version.</p>
 {% elif name == 'github' %}
 <ol class="guide-list"><li><strong>Set up only when needed.</strong> GitHub enables repository access, pushes and pull requests.</li><li><strong>Sign in on the server.</strong> Open a terminal inside the Orca runtime and use the native GitHub CLI.</li><li><strong>Read identity and permissions.</strong> The login on your Mac is separate.</li></ol>
 <details><summary>Commands inside the runtime</summary><pre><code>gh auth login --hostname github.com --web
