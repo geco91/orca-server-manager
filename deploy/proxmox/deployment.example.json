@@ -1,0 +1,20 @@
+{
+  "installation": "pilot",
+  "runtime_id": 201,
+  "manager_id": 202,
+  "builder_id": 200,
+  "base": "/var/lib/orca-manager-pilot",
+  "data": "/mnt/orca-manager-pilot",
+  "storage": "InternalSSD",
+  "bridge": "vmbr0",
+  "runtime_mac": "02:4F:52:43:41:01",
+  "version": "1.4.261",
+  "source_commit": "REPLACE_WITH_THE_CLEAN_CHECKOUT_COMMIT",
+  "builder_alias": "orca-pilot-builder",
+  "ssh_config": "/root/.ssh/orca-pilot-config",
+  "builder_checkout": "/srv/orca-server-manager",
+  "builder_output": "/srv/orca-oci",
+  "runtime_memory": 3072,
+  "runtime_cores": 2,
+  "generation": 0
+}

@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">DEPLOYMENT OPERATION</span><h1>{{ {'queued':'Waiting for the worker.', 'running':'Operation in progress.', 'completed':'Operation completed.', 'failed':'Operation needs attention.', 'blocked':'Finish your work in Orca first.', 'interrupted':'Operation was interrupted.'}.get(job.state, 'Operation status unknown.') }}</h1><p>{{ job.message }}</p></div></div>
+<section class="panel">
+{% if job.phase %}<h2>{{ job.phase }}</h2>{% endif %}
+{% if job.detail %}<p>{{ job.detail }}</p>{% endif %}
+{% if job.state in ['queued', 'running'] %}<p class="busy-text">This page refreshes automatically. You can browse the other sections.</p>{% endif %}
+{% if job.state == 'failed' %}<div class="notice warn"><strong>The return path is kept.</strong><p>Read the runtime status and use the previous version on the versions page if required. A failed start does not approve or reject an Orca release.</p></div>{% endif %}
+<div class="button-row"><a class="button" href="{{ url_for('updates') }}">Versions &amp; rollback</a><a href="{{ url_for('overview') }}">Overview</a></div>
+</section>
+{% endblock %}

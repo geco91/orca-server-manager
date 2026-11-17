@@ -1,0 +1,14 @@
+[Unit]
+Description=Orca Server Manager scoped OCI deployment worker
+After=pve-cluster.service network-online.target
+Wants=network-online.target
+RequiresMountsFor=@DATA@
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 @CHECKOUT@/deploy/proxmox/worker.py --config @CONFIG@
+TimeoutStartSec=60min
+PrivateTmp=yes
+NoNewPrivileges=yes

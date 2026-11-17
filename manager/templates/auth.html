@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="auth panel">
+<span class="eyebrow">SECURE ACCESS</span>
+<h1>{{ 'Welcome aboard.' if bootstrap else 'Welcome back.' }}</h1>
+<p>{{ 'Create your administrator account to manage this server.' if bootstrap else 'Sign in to manage your server.' }}</p>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if bootstrap %}
+<label for="token">Setup code</label><input id="token" name="token" type="password" autocomplete="off" required>
+<p class="hint">In Proxmox, select the manager container and open <strong>Summary → Notes</strong>. Copy the one-time setup code shown there.</p>
+<p class="hint">The code expires after setup. The host worker removes its copy from Notes on the next pass.</p>
+<details><summary>Using Docker or another deployment?</summary>
+<p class="hint">Follow your deployment guide to retrieve the one-time code from the administrator console.</p>
+</details>
+{% endif %}
+<label for="password">Administrator password</label>
+<input id="password" name="password" type="password" minlength="{{ 8 if bootstrap else 1 }}" maxlength="256" autocomplete="{{ 'new-password' if bootstrap else 'current-password' }}" required>
+{% if bootstrap %}<p class="hint">Use your own password with 8–256 characters.</p>{% endif %}
+<button>{{ 'Create administrator' if bootstrap else 'Sign in' }}</button>
+</form>
+</section>
+{% endblock %}

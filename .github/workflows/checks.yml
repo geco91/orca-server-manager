@@ -1,0 +1,31 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  manager:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+          python-version: "3.12"
+      - run: uv sync --frozen
+      - run: uv run ruff check manager tests scripts
+      - run: uv run ruff format --check manager tests scripts
+      - run: uv run ruff check deploy/proxmox container/manager-service.py
+      - run: uv run ruff format --check deploy/proxmox container/manager-service.py
+      - run: uv run pytest -q
+      - run: docker compose -f compose/compose.yaml config --quiet
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: bash scripts/build.sh
+      - run: python scripts/smoke.py

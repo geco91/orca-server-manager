@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% if refresh_seconds %}<meta http-equiv="refresh" content="{{ refresh_seconds }}">{% endif %}
+<title>{% block title %}Orca Server Manager{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='pilot.css') }}">
+</head>
+<body>
+<header class="app-header">
+<a class="brand brand-button" href="{{ url_for('overview') }}"><span class="mark" aria-hidden="true">◒</span><span class="brand-name">Orca <small>Server Manager</small></span></a>
+{% if current_user.is_authenticated %}
+<nav id="main-nav" aria-label="Main navigation">
+<a class="nav-button" href="{{ url_for('overview') }}"{% if request.endpoint == 'overview' %} aria-current="page"{% endif %}>Overview</a>
+<a class="nav-button" href="{{ url_for('connections') }}"{% if request.endpoint in ['connections', 'connection'] %} aria-current="page"{% endif %}>Connections</a>
+<a class="nav-button" href="{{ url_for('updates') }}"{% if request.endpoint in ['updates', 'operation'] %} aria-current="page"{% endif %}>Versions &amp; updates</a>
+</nav>
+<form action="{{ url_for('sign_out') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="quiet">Sign out</button></form>
+{% endif %}
+</header>
+<main>
+{% if active_operation %}<div class="notice neutral"><strong>An operation is in progress.</strong><a href="{{ url_for('operation', job_id=active_operation.id) }}">View progress</a></div>{% endif %}
+{% block content %}{% endblock %}
+</main>
+<footer>Orca handles development. The manager helps with setup, connections and operation.</footer>
+</body>
+</html>

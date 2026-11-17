@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Orca Server Manager · UI prototype</title>
+  <style>/* MOCK_STYLES */</style>
+</head>
+<body>
+  <div class="demo-banner"><strong>UI PROTOTYPE</strong><span>Connections, version changes and backups are simulated.</span><button class="banner-help" data-action="help">About</button></div>
+  <header class="app-header">
+    <button class="brand brand-button" data-action="navigate" data-page="overview" aria-label="Orca Server Manager overview"><span class="mark" aria-hidden="true">◒</span><span class="brand-name">Orca <small>Server Manager</small></span></button>
+    <nav id="main-nav" aria-label="Main navigation"></nav>
+    <span class="host-label"><span class="host-dot" aria-hidden="true"></span>orca-pilot</span>
+  </header>
+  <div class="demo-toolbar" aria-label="Demo controls">
+    <label for="scenario">Scenario</label>
+    <select id="scenario">
+      <option value="fresh">Basic runtime · connections not configured</option>
+      <option value="ready">Orca and connections configured</option>
+      <option value="paired-offline">Devices paired, but offline</option>
+      <option value="tunnel-error">OpenAI tunnel not reachable</option>
+      <option value="update-failure">New version fails to start</option>
+      <option value="active-work">Update during an active agent task</option>
+    </select>
+    <span class="toolbar-note">Changes affect this demo only.</span>
+    <button class="quiet" data-action="reset">Reset</button>
+  </div>
+  <main id="app"></main>
+  <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+  <dialog id="demo-help" aria-labelledby="help-title">
+    <div class="dialog-body"><span class="eyebrow">ABOUT THIS PREVIEW</span><h2 id="help-title">Manage the server. Work in Orca.</h2><p>This offline prototype shows native setup guides, technical status checks, version selection, updates and rollback.</p><p>The version list is an offline snapshot of official Orca releases from 16 November 2026. It is not loaded live. The manager provides no local stability rating or version approval.</p><p>All actions stay in this tab. No accounts are connected, agents started, images built or real data saved or restored. Reloading resets the demo.</p><button data-action="close-help">Got it</button></div>
+  </dialog>
+  <dialog id="rollback-dialog" aria-labelledby="rollback-title"><div id="rollback-body" class="dialog-body"></div></dialog>
+  <footer>Orca handles development. The manager helps with setup, connections and operation.<span>Offline prototype · 16 November 2026</span></footer>
+  <script>/* MOCK_SCRIPT */</script>
+</body>
+</html>

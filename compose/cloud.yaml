@@ -1,0 +1,9 @@
+# Optional managed-cloud trust, kept outside OCI image layers.
+# docker compose -f compose/compose.yaml -f compose/cloud.yaml up -d
+services:
+  runtime:
+    environment:
+      NODE_EXTRA_CA_CERTS: /run/cloud-ca.pem
+      NO_PROXY: localhost,127.0.0.1,manager,runtime
+    volumes:
+      - ${CLOUD_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}:/run/cloud-ca.pem:ro
