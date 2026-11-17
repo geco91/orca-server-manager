@@ -1,8 +1,24 @@
 'use strict';
 (() => {
   const panel = document.querySelector('#web-pairing');
-  if (!panel?.dataset.statusUrl) return;
+  if (!panel) return;
   const status = document.querySelector('#pairing-status');
+  const form = document.querySelector('#pairing-form');
+  const submit = form.querySelector('button');
+  const unavailable = submit.disabled;
+  function setBusy(busy) {
+    panel.setAttribute('aria-busy', String(busy));
+    status.classList.toggle('busy-text', busy);
+    submit.classList.toggle('busy-text', busy);
+    submit.disabled = busy || unavailable;
+    submit.textContent = busy ? 'Preparing pairing link…' : 'Prepare pairing link';
+  }
+  form.addEventListener('submit', () => {
+    setBusy(true);
+    status.textContent = 'Preparing your pairing link. This can take a few seconds…';
+  });
+  setBusy(Boolean(panel.dataset.statusUrl));
+  if (!panel.dataset.statusUrl) return;
   let attempts = 0;
   async function poll() {
     try {
@@ -16,15 +32,17 @@
         document.querySelector('#pairing-code').value = data.pairing.code;
         document.querySelector('#pairing-open').href = target.href;
         document.querySelector('#pairing-ready').hidden = false;
+        setBusy(false);
         status.textContent = 'Your private pairing link is ready. Orca will confirm when this browser is connected.';
         if (panel.dataset.autoOpen === 'true') location.replace(target.href);
         return;
       }
       status.textContent = data.message || 'Requesting the native Orca pairing link…';
-      if (['expired','failed'].includes(data.state)) return;
+      if (['expired','failed'].includes(data.state)) {setBusy(false); return;}
       if (++attempts < 125) setTimeout(poll, 1000);
-      else status.textContent = 'The worker has not finished yet. Refresh the server status and prepare another link.';
+      else {setBusy(false); status.textContent = 'The worker has not finished yet. Refresh the server status and prepare another link.';}
     } catch {
+      setBusy(false);
       status.textContent = 'The connection link could not be loaded. Check that you are signed in and try preparing it again.';
     }
   }
