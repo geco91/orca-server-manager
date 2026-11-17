@@ -128,6 +128,8 @@ def apply(cfg, source_config, archive_dir, resume=False):
     for path in [
         ROOT,
         ROOT / "deploy/proxmox/worker.py",
+        ROOT / "deploy/proxmox/forge.py",
+        ROOT / "manager/forge.py",
         ROOT / "deploy/proxmox/notes.py",
         ROOT / "deploy/proxmox/pairing.py",
         ROOT / "manager/control.py",

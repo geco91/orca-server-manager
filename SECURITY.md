@@ -40,6 +40,11 @@ coordinator. Containers are not a multi-tenant isolation boundary.
   Credential JSON uses no-referrer; HTML keeps same-origin referrers for strict
   HTTPS CSRF checks. Native offer fragments are never sent as HTTP referrers.
   The underlying pairing and credential lifetime remain native Orca behavior.
+- Native Git provider clients own OAuth tokens in runtime HOME. The manager
+  sends only fixed provider actions. The initiating browser session can read
+  its human-entered code for up to ten minutes. Ordinary results and logs omit
+  CLI output and credentials. Forgejo setup shares only an Ed25519 public key.
+  The browser opens the operator's Forgejo address directly.
 - Administrator passwords accept 8–256 characters and remain scrypt-hashed.
   Release selection and both deployment layers reject downgrades/reinstalls;
   older software is accessible only through an existing saved rollback point.

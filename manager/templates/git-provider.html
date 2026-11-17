@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Connect {{ spec.name }} · Orca{% endblock %}
+{% block content %}
+<div class="setup-shell">
+<a class="back" href="{{ url_for('welcome', step='git') if guided else url_for('connections') }}">← {{ 'Git accounts' if guided else 'Connections' }}</a>
+<h1>Connect {{ spec.name }}</h1>
+{% set observed = status.integrations[provider] %}
+{% if observed.state == 'ready' %}<p class="identity-line">Server signed in{% if observed.checks %} as <strong>{{ observed.checks[0].value }}</strong>{% endif %}.</p>{% endif %}
+{% if provider == 'forgejo' %}
+<p class="setup-intro">Give your Forgejo account the server’s public SSH key to clone, pull and push repositories over SSH.</p>
+{% else %}
+<p class="setup-intro">Authorize the Orca server on {{ spec.host }}. You’ll enter a one-time code in your browser.</p>
+{% endif %}
+{% if error %}<p class="notice warn" role="alert">{{ error }}</p>{% endif %}
+<section class="panel forge-login" id="forge-login" {% if job_id %}data-progress="{{ url_for('git_progress', provider=provider, job_id=job_id) }}"{% endif %}>
+{% if provider == 'forgejo' %}
+<label for="forge-instance">Your Forgejo address</label>
+<input id="forge-instance" type="url" placeholder="https://git.example.org" autocomplete="url" autocapitalize="none" spellcheck="false">
+<p class="hint" id="forge-host-hint">Enter the HTTPS address you use to sign in to your instance.</p>
+<div id="instance-links" hidden><a id="forge-keys" target="_blank" rel="noopener noreferrer">Open SSH key settings ↗</a> · <a id="forge-signup" target="_blank" rel="noopener noreferrer">Create an account ↗</a></div>
+{% endif %}
+<form method="post" action="{{ url_for('start_git',provider=provider) }}" id="forge-start">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<button{% if provider not in status.runtime.git_setup or not status.controller.available or active_operation %} disabled{% endif %}>{{ 'Prepare public SSH key' if provider == 'forgejo' else 'Get a sign-in code' }}</button>
+</form>
+{% if provider not in status.runtime.git_setup or not status.controller.available %}<p class="hint">The runtime helper is unavailable. Use the terminal instructions below or return when the server is ready.</p>{% endif %}
+<p id="forge-status" class="forge-status{% if job_id %} busy-text{% endif %}" role="status" aria-live="polite">{% if job_id %}Checking your request…{% endif %}</p>
+{% if provider == 'forgejo' %}
+<div id="offer" hidden><label for="offer-value">Public SSH key</label><textarea id="offer-value" rows="3" readonly spellcheck="false"></textarea>
+<button type="button" id="copy-offer" class="quiet">Copy public key</button>
+<p>In your Forgejo SSH key settings, choose <strong>Add Key</strong> and paste the public key. Copy the repository’s SSH clone URL from Forgejo. A successful clone in Orca confirms access to that repository.</p></div>
+{% else %}
+<div id="offer" hidden><label for="offer-value">One-time code</label><div class="code-line"><input id="offer-value" readonly autocomplete="off" spellcheck="false"><button type="button" id="copy-offer" class="quiet">Copy code</button></div>
+<a class="button" href="{{ spec.verify }}" target="_blank" rel="noopener noreferrer">Authorize on {{ spec.host }} ↗</a>
+<p class="hint">Return here after authorizing. The server checks the result automatically.</p></div>
+<p class="signup-link">New to {{ spec.name }}? <a href="{{ spec.signup }}" target="_blank" rel="noopener noreferrer">Create an account ↗</a></p>
+{% endif %}
+</section>
+<details class="native-fallback"><summary>Use the runtime terminal</summary>
+<p>In the Proxmox console, open a shell as the Orca user.</p>
+<pre><code>pct exec {{ status.deployment.runtime_id or 'RUNTIME_CT_ID' }} -- runuser -l orca</code></pre>
+{% if provider == 'github' %}<pre><code>gh auth login --hostname github.com --web --git-protocol https
+gh auth setup-git --hostname github.com
+gh api --hostname github.com user --jq .login</code></pre>
+{% elif provider == 'gitlab' %}<pre><code>glab auth login --hostname gitlab.com --device --git-protocol https --setup-git-credential-helper
+glab auth status --hostname gitlab.com</code></pre><p>For a self-managed GitLab instance, use its hostname and the sign-in method enabled by its administrator.</p>
+{% else %}<p>Use the SSH username, host and port from the repository’s clone URL. Verify the SSH host fingerprint with the instance administrator on first use.</p><pre><code>ssh -T git@YOUR-FORGEJO-HOST</code></pre>{% endif %}
+</details>
+{% if guided %}<div class="button-row"><a href="{{ url_for('welcome', step='git') }}">Choose another provider</a><form method="post" action="{{ url_for('continue_setup') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="quiet">Continue to Orca →</button></form></div>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static',filename='git-setup.js') }}" defer></script>{% endblock %}

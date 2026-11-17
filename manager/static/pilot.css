@@ -157,3 +157,34 @@ footer span { display: block; margin-top: 5px; }
 .release-option a::after { content: none; }
 .connection-card { text-align: left; color: var(--ink); font-weight: 400; }
 .connection-card .card-link { color: var(--accent); font-size: 12px; margin-top: auto; padding-top: 12px; }
+
+.setup-nav-label { flex: 1; color: var(--muted); font-size: .9rem; }
+.setup-shell { max-width: 640px; margin: 0 auto; }
+.setup-shell h1 { margin: 18px 0 10px; }
+.setup-intro { font-size: 1rem; max-width: 56ch; }
+.setup-progress { margin: 0 0 28px; padding: 0; display: flex; list-style: none; gap: 12px; }
+.setup-progress li { flex: 1; border-top: 3px solid var(--line); padding-top: 8px; color: var(--muted); font-size: .85rem; }
+.setup-progress li[aria-current] { border-color: var(--accent); color: var(--ink); }
+.setup-progress a { color: inherit; }
+.forge-list { display: grid; margin: 22px 0 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.forge-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; text-decoration: none; }
+.forge-row + .forge-row { border-top: 1px solid var(--line); }
+.forge-row:hover, .forge-row:focus-visible { background: #193032; }
+.forge-row strong, .forge-row small { display: block; }
+.forge-row strong { color: var(--ink); font-size: 1rem; }
+.forge-row small { color: var(--muted); }
+.forge-action { white-space: nowrap; }
+.launch-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 14px 22px; }
+.launch-actions > form, .launch-actions p { margin: 0; }
+.setup-agent, .forge-login, .native-fallback { margin: 24px 0; }
+.setup-agent h2, .forge-login label:first-child { margin-top: 0; }
+.overview-launch h1 { margin: 0; }
+.forge-login .code-line { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.code-line input { font: 650 1.3rem ui-monospace, monospace; letter-spacing: .1em; width: 11ch; box-sizing: content-box; }
+.forge-login textarea { width: 100%; min-height: 5em; }
+.forge-status:empty { display: none; }
+.identity-line { color: var(--accent); }
+.signup-link { margin-bottom: 0; }
+#instance-links { margin: 12px 0 20px; }
+.native-fallback summary { cursor: pointer; }
+@media (max-width: 580px) { .setup-nav-label { display: none; } .forge-row { padding: 14px; } }

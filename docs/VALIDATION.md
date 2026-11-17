@@ -136,3 +136,15 @@ user-selected versions. Versions and labels still come directly from Orca.
   intended mapped-root traversal rights, preserving private-directory modes.
 - No provider login, API key or agent task was used. This checks the manager's
   update/return process; it is no classification or approval of OpenCode releases.
+
+## Guided setup and OpenCode 2
+
+The 172-test suite covers guided setup persistence, session-scoped Git
+authorization, native credential-helper completion, Forgejo key reuse,
+migration of manager-selected agent preferences, and the update guard when the
+managed version is unobservable. The standard runtime launches the official
+OpenCode 2 v2.3.0 executable and retains OpenCode 1 for older workspaces.
+The Compose smoke test exercises native RPC, the host agent preference and
+the bundled Orca WebUI. In isolated client profiles, GitHub and GitLab each
+issued a real device authorization code. Completing consent and checking
+repository permissions require the operator's account.

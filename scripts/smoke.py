@@ -146,12 +146,15 @@ def main():
                     "password": password,
                 },
             )
-            assert "Run Orca. Keep connections in view." in html
-            assert "Open Orca WebUI" in html and 'target="_blank" rel="noopener"' in html
+            assert "Connect your Git accounts" in html and "Versions &amp; updates" not in html
+            html = post("/welcome/continue", {"csrf_token": csrf("/")})
+            assert "Open Orca WebUI" in html and "OpenCode 2" in html
+            html = post("/welcome/finish", {"csrf_token": csrf("/welcome")})
+            assert "Your Orca workspace" in html
             status = json.loads(page("/api/status"))
             assert status["runtime"]["state"] == "unknown"  # Compose has no Proxmox worker.
             assert not status["controller"]["available"]
-            assert "optional" in page("/connections/github").lower()
+            assert "Get a sign-in code" in page("/connections/github")
             assert "OpenAI Secure MCP Tunnel" in page("/connections/tunnel")
             try:
                 post("/actions/refresh", {})
@@ -164,7 +167,8 @@ def main():
             )
             assert native["runtime"]["reachable"] is True
             assert native["runtime"]["version"] == "1.4.261"
-            assert native["runtime"]["opencode_version"] == "1.19.5"
+            assert native["runtime"]["opencode_version"] == "2.3.0"
+            assert set(native["runtime"]["git_setup"]) == {"github", "gitlab", "forgejo"}
             assert native["runtime"]["active_terminals"] == 0
             assert native["runtime"]["web_url"].endswith(":6768/web-index.html")
             from pairing_smoke import check_pairing
@@ -174,7 +178,7 @@ def main():
                 row["name"]: row["value"] for row in native["integrations"]["providers"]["checks"]
             }
             assert provider_checks["Codex CLI"] == provider_checks["OpenCode CLI"] == "Installed"
-            assert provider_checks["Host default agent"] == "OpenCode"
+            assert provider_checks["Host default agent"] == "OpenCode 2"
             assert provider_checks["Managed OpenCode accounts"] == "0"
             assert native["integrations"]["providers"]["state"] != "ready"
             assert native["integrations"]["mcp"]["state"] == "ready", native["integrations"]["mcp"]
@@ -199,7 +203,7 @@ def main():
             )
             for _ in range(20):
                 try:
-                    assert "Run Orca." in page("/")
+                    assert "Your Orca workspace" in page("/")
                     break
                 except (OSError, AssertionError):
                     time.sleep(0.5)

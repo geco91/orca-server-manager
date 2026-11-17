@@ -4,7 +4,8 @@ from urllib.parse import quote
 
 from manager.releases import SHA256, VERSION, ReleaseError, read_json, version_key
 
-DEFAULT_VERSION = "1.19.5"
+DEFAULT_VERSION = "2.3.0"
+LEGACY_VERSION = "1.19.5"
 API = "https://api.github.com/repos/anomalyco/opencode"
 ASSETS = {"amd64": "opencode-linux-x64.tar.gz", "arm64": "opencode-linux-arm64.tar.gz"}
 

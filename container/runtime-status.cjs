@@ -36,9 +36,10 @@ const completeCensus = terminals?.ok === true && terminalResult?.truncated === f
 const activeTerminals = completeCensus && Array.isArray(terminalRows) ? terminalRows.length : null;
 const accounts = reachable ? cli(['account','list','--json']) : null;
 const hasCodex = installed('codex'), hasOpenCode = installed('opencode');
-const opencodeResult = hasOpenCode ? run('opencode',['--version']) : null;
+const hasOpenCode2 = installed('opencode2');
+const opencodeResult = hasOpenCode2 || hasOpenCode ? run(hasOpenCode2 ? 'opencode2' : 'opencode',['--version']) : null;
 const opencodeOutput = opencodeResult?.status === 0 ? opencodeResult.stdout?.trim() || '' : '';
-const opencodeVersion = /^v?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]{0,60})?)$/.exec(opencodeOutput)?.[1] || null;
+const opencodeVersion = /^(?:opencode\s+)?v?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]{0,60})?)$/.exec(opencodeOutput)?.[1] || null;
 const codexAuth = hasCodex ? run('codex',['login','status']).status === 0 : false;
 const accountResult = accounts?.result || {};
 function accountCount(key) {
@@ -48,10 +49,11 @@ function accountCount(key) {
 const providers = {
   state: codexAuth ? 'ready' : 'partial',
   label: codexAuth ? 'Codex reports a native login' : 'Native setup required',
-  detail:'OpenCode is included in the standard image. Configure its model providers natively when needed; installation does not confirm provider access.',
+  detail:'The server reports its installed CLIs and host preference. Configure model access in your Orca workspace.',
   checks:[
     {name:'Codex CLI',value:hasCodex?'Installed':'Not installed'},
     {name:'OpenCode CLI',value:hasOpenCode?'Installed':'Not installed'},
+    {name:'OpenCode 2 CLI',value:hasOpenCode2?'Installed':'Not installed'},
     {name:'OpenCode version',value:opencodeVersion || 'Not observable'},
     {name:'Managed Codex accounts',value:String(accountCount('codex') ?? 'Not observable')},
     {name:'Managed OpenCode accounts',value:String(accountCount('opencode') ?? 'Not observable')},
@@ -61,7 +63,7 @@ const providers = {
 };
 const github = {state:'partial',label:'Server login not verified',detail:'GitHub is optional. Sign in with the native GitHub CLI on the runtime.',checks:[]};
 if (installed('gh')) {
-  const result = run('gh',['api','user','--jq','.login']);
+  const result = run('gh',['api','--hostname','github.com','user','--jq','.login']);
   const login = result.status===0 ? result.stdout.trim() : '';
   if (/^[a-zA-Z0-9-]{1,40}$/.test(login)) {
     github.state='ready';github.label='Server signed in';
@@ -69,6 +71,22 @@ if (installed('gh')) {
     github.checks=[{name:'Server identity',value:login},{name:'Repository permissions',value:'Depend on the selected repository; not inferred from this login.'}];
   }
 } else {github.label='GitHub CLI missing';}
+const gitlab = {state:'partial',label:'Server login not verified',detail:'Use a browser code to authorize the GitLab CLI on this runtime.',checks:[]};
+if (installed('glab')) {
+  const result = run('glab', ['api', '--hostname', 'gitlab.com', 'user']);
+  let username;
+  if (result.status === 0) {
+    try { username = JSON.parse(result.stdout).username; } catch {}
+  }
+  if (typeof username === 'string' && /^[a-zA-Z0-9_.-]{1,255}$/.test(username)) {
+    gitlab.state='ready'; gitlab.label='Server signed in';
+    gitlab.detail='The runtime read its authenticated GitLab account.';
+    gitlab.checks=[{name:'Server identity',value:username}];
+  }
+} else { gitlab.label='GitLab CLI missing'; }
+const forgejo = {state:'unknown',label:'Verify at your instance',detail:'Register the runtime SSH key in your Forgejo account and test a repository over SSH.',checks:[]};
+const gitSetup = fs.existsSync('/opt/osm/forge.cjs') ?
+  [['github','gh'], ['gitlab','glab'], ['forgejo','ssh-keygen']].filter(([,cmd]) => installed(cmd)).map(([name]) => name) : [];
 const clients = {state:'unknown',label:'Inspect in Orca',detail:'This adapter has no supported native client census. Pairing and current connectivity are not inferred from an open port.',checks:[]};
 const bridge = {state:'partial',label:'Bridge token not configured',detail:'The existing community bridge is optional and starts after its private token is configured.',checks:[]};
 if (fs.existsSync('/run/secrets/bridge_token')) {
@@ -91,11 +109,11 @@ async function publish() {
   if (reachable) {
     try {hostDefault=(await readSettings(process.env.ORCA_USER_DATA_PATH || path.join(os.homedir(),'.config','Orca'))).defaultTuiAgent;} catch {}
   }
-  if (hasOpenCode && !codexAuth) providers.label=hostDefault==='opencode'?'OpenCode prepared; provider access not verified':'OpenCode installed; provider access not verified';
+  if (hasOpenCode2 && !codexAuth) providers.label = hostDefault === 'opencode2' ? 'OpenCode 2 prepared' : 'OpenCode 2 installed';
   const agentNames={opencode:'OpenCode',opencode2:'OpenCode 2',codex:'Codex',claude:'Claude',blank:'Blank terminal'};
   providers.checks.push({name:'Host default agent',value:Object.hasOwn(agentNames,hostDefault)?agentNames[hostDefault]:typeof hostDefault==='string'?'Another native agent selected':'Not selected or not observable'},
     {name:'OpenCode provider access',value:'Not tested by this status check'});
-  console.log(JSON.stringify({schema:1,runtime:{reachable,version,opencode_version:opencodeVersion,active_terminals:activeTerminals,web_url:webUrl},
-    integrations:{providers,github,desktop:clients,mobile:clients,mcp:bridge,tunnel}}));
+  console.log(JSON.stringify({schema:1,runtime:{reachable,version,opencode_version:opencodeVersion,git_setup:gitSetup,active_terminals:activeTerminals,web_url:webUrl},
+    integrations:{providers,github,gitlab,forgejo,desktop:clients,mobile:clients,mcp:bridge,tunnel}}));
 }
 publish().catch(()=>{console.error('The native status observation could not complete.');process.exitCode=1;});

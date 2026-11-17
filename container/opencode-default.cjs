@@ -68,14 +68,15 @@ function nativeSettings(userData, updates, timeout = 5000) {
 
 function readSettings(userData, timeout) {return nativeSettings(userData, null, timeout);}
 
-async function configure({userData, executable = '/usr/local/bin/opencode', timeout = 60000}) {
+async function configure({userData, executable, timeout = 60000}) {
+  executable ??= fs.existsSync('/usr/local/bin/opencode2') ? '/usr/local/bin/opencode2' : '/usr/local/bin/opencode';
+  const agent = path.basename(executable) === 'opencode2' ? 'opencode2' : 'opencode';
   fs.accessSync(executable, fs.constants.X_OK);
   const marker = path.join(userData, '.osm-opencode-default.json');
-  if (fs.existsSync(marker)) {
-    const saved = privateFile(marker, 4096);
-    if (saved.schema !== 1) throw new Error('The host default record is not supported.');
-    return {state:'preserved'};
-  }
+  const saved = fs.existsSync(marker) ? privateFile(marker, 4096) : null;
+  if (saved && ![1, 2].includes(saved.schema)) throw new Error('The host default record is not supported.');
+  const previousAgent = saved?.schema === 1 ? 'opencode' : saved?.agent;
+  if (saved && previousAgent === agent) return {state:'preserved'};
   const deadline = Date.now() + timeout;
   let settings;
   while (Date.now() < deadline) {
@@ -84,14 +85,15 @@ async function configure({userData, executable = '/usr/local/bin/opencode', time
   }
   if (!settings) throw new Error('Orca settings are not ready.');
   const previous = settings.defaultTuiAgent;
-  const apply = previous === null || previous === undefined;
+  // Migrate only a default that this installation previously selected.
+  const apply = saved ? saved.applied === true && previous === previousAgent : previous == null;
   if (apply) {
-    const result = await nativeSettings(userData, {defaultTuiAgent:'opencode'});
-    if (result.defaultTuiAgent !== 'opencode') throw new Error('The native host default was not saved.');
+    const result = await nativeSettings(userData, {defaultTuiAgent:agent});
+    if (result.defaultTuiAgent !== agent) throw new Error('The native host default was not saved.');
   }
   const temporary = marker + '.' + randomUUID();
   try {
-    fs.writeFileSync(temporary, JSON.stringify({schema:1,applied:apply}), {mode:0o600,flag:'wx'});
+    fs.writeFileSync(temporary, JSON.stringify({schema:2,agent,applied:apply}), {mode:0o600,flag:'wx'});
     fs.renameSync(temporary, marker);
   } finally {try {fs.unlinkSync(temporary);} catch {}}
   return {state:apply ? 'configured' : 'preserved'};

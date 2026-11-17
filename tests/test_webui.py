@@ -49,8 +49,8 @@ def test_overview_exposes_the_native_webui_in_new_tabs_via_the_existing_https_or
     )
     with app.test_client() as client:
         bootstrap(app, client)
-        html = get(client, "/").text
-        assert html.count('action="/actions/web-pairing" target="_blank" rel="noopener"') == 2
+        html = get(client, "/overview").text
+        assert html.count('action="/actions/web-pairing" target="_blank" rel="noopener"') == 1
         assert 'href="/web-ui"' in html
         assert "Open Orca WebUI" in html
         assert "192.168.50.25" not in html

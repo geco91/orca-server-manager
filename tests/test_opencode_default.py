@@ -52,7 +52,9 @@ def native_settings(tmp_path):
                         assert request["authToken"] == "unit-only-private-token"
                         state["calls"].append(request["method"])
                         if request["method"] == "settings.update":
-                            assert request["params"] == {"defaultTuiAgent": "opencode"}
+                            assert request["params"] in [
+                                {"defaultTuiAgent": agent} for agent in ("opencode", "opencode2")
+                            ]
                             state["settings"].update(request["params"])
                         else:
                             assert request["method"] == "settings.get"
@@ -165,3 +167,32 @@ def test_missing_provider_cli_does_not_change_the_native_host(native_settings):
     data, _, state = native_settings
     assert configure(data, data / "not-installed").returncode == 1
     assert not state["calls"] and not (data / ".osm-opencode-default.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("saved", "native", "expected"),
+    [
+        (None, None, "opencode2"),
+        (True, "opencode", "opencode2"),
+        (False, "opencode", "opencode"),
+        (True, "codex", "codex"),
+        (True, None, None),
+    ],
+)
+def test_opencode2_fresh_default_and_owned_legacy_migration(
+    native_settings, saved, native, expected
+):
+    data, _, state = native_settings
+    executable = data / "opencode2"
+    executable.symlink_to(shutil.which("node"))
+    state["settings"]["defaultTuiAgent"] = native
+    marker = data / ".osm-opencode-default.json"
+    if saved is not None:
+        marker.write_text(json.dumps({"schema": 1, "applied": saved}))
+        marker.chmod(0o600)
+    assert configure(data, executable).returncode == 0
+    assert state["settings"] == {"defaultTuiAgent": expected, "unrelated": "preserve-me"}
+    assert json.loads(marker.read_text())["agent"] == "opencode2"
+    state["settings"]["defaultTuiAgent"] = "blank"
+    assert configure(data, executable).returncode == 0
+    assert state["settings"]["defaultTuiAgent"] == "blank"

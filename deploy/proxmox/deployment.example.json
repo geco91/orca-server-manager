@@ -9,7 +9,7 @@
   "bridge": "vmbr0",
   "runtime_mac": "02:4F:52:43:41:01",
   "version": "1.4.261",
-  "opencode_version": "1.19.5",
+  "opencode_version": "2.3.0",
   "source_commit": "REPLACE_WITH_THE_CLEAN_CHECKOUT_COMMIT",
   "builder_alias": "orca-pilot-builder",
   "ssh_config": "/root/.ssh/orca-pilot-config",

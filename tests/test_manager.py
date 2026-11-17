@@ -79,10 +79,10 @@ def test_setup_requires_token_strong_password_and_csrf(app):
 def test_native_guides_are_optional_and_unobserved_status_stays_unknown(app):
     with app.test_client() as client:
         bootstrap(app, client)
-        page = get(client, "/")
+        page = get(client, "/overview")
         assert '<html lang="en">' in page.text
         assert "Not verified" in page.text
-        assert "GitHub is optional" in page.text
+        assert "GitHub" in page.text and "Revisit setup" in page.text
         assert "0%" not in page.text
         assert post(client, "/actions/refresh", {}).status_code == 400
         status = get(client, "/api/status").json
@@ -90,7 +90,12 @@ def test_native_guides_are_optional_and_unobserved_status_stays_unknown(app):
         assert not status["controller"]["available"]
         assert {row["state"] for row in status["integrations"].values()} == {"unknown"}
         for key in status["integrations"]:
-            assert get(client, f"/connections/{key}").status_code == 200
+            assert (
+                client.get(
+                    f"/connections/{key}", base_url="https://localhost", follow_redirects=True
+                ).status_code
+                == 200
+            )
         assert "OpenAI Secure MCP Tunnel" in get(client, "/connections/tunnel").text
         assert "orca pair --mobile" in get(client, "/connections/mobile").text
         result = post(client, "/actions/refresh", {"csrf_token": csrf(client, "/")})

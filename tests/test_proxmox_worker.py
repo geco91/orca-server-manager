@@ -546,3 +546,10 @@ def test_build_rejects_a_mismatched_opencode_manifest(deployment, monkeypatch, t
         Worker.build(worker, "1.4.261", "1.19.6")
     assert any(args[0] == "ssh" and "--opencode-version 1.19.6" in args[-1] for args in commands)
     assert not pve.commands
+
+
+def test_failed_managed_probe_never_reports_the_legacy_binary_as_current(deployment):
+    worker, pve = deployment
+    pve.software[201] = ("1.4.261", None)
+    assert worker.probe()["runtime"]["opencode_version"] is None
+    assert not any(command[-1] == "--version" for command in pve.commands)
