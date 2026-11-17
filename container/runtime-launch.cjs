@@ -4,7 +4,7 @@ const fs = require('node:fs');
 
 const children = new Set();
 let stopping = false;
-function start(command, args, environment, optional = false) {
+function start(command, args, environment, optional = false, oneShot = false) {
   // Optional upstream services may print token-bearing endpoint URLs. Keep those
   // streams private; report their lifecycle and technical health separately.
   const child = spawn(command, args, {env: environment, stdio: optional ? 'ignore' : 'inherit', detached: true});
@@ -16,7 +16,7 @@ function start(command, args, environment, optional = false) {
   child.on('exit', (code) => {
     children.delete(child);
     if (!stopping && !optional) shutdown(code || 1);
-    else if (!stopping && optional) console.error('An optional integration stopped; Orca remains available.');
+    else if (!stopping && optional && (!oneShot || code)) console.error('An optional integration stopped; Orca remains available.');
   });
   return child;
 }
@@ -39,6 +39,9 @@ function shutdown(code = 0) {
 process.on('SIGTERM', () => shutdown());
 process.on('SIGINT', () => shutdown());
 start('/usr/local/bin/orca', ['serve', '--bind', '0.0.0.0', '--port', '6768', '--no-pairing'], process.env);
+if (fs.existsSync('/usr/local/bin/opencode')) {
+  start(process.execPath, ['/opt/osm/opencode-default.cjs'], process.env, true, true);
+}
 const tokenFile = '/run/secrets/bridge_token';
 function privateText(file) {
   try {return fs.readFileSync(file, 'utf8').trim();}

@@ -173,6 +173,8 @@ def main():
                 row["name"]: row["value"] for row in native["integrations"]["providers"]["checks"]
             }
             assert provider_checks["Codex CLI"] == provider_checks["OpenCode CLI"] == "Installed"
+            assert provider_checks["Host default agent"] == "OpenCode"
+            assert provider_checks["Managed OpenCode accounts"] == "0"
             assert native["integrations"]["providers"]["state"] != "ready"
             assert native["integrations"]["mcp"]["state"] == "ready", native["integrations"]["mcp"]
             assert native["integrations"]["tunnel"]["state"] == "unknown"

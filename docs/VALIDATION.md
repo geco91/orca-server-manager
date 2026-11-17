@@ -7,7 +7,7 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
 ## Implementation and builds
 
 - `uv sync --frozen` and Ruff lint/format checks: passed.
-- `uv run pytest -q`: **124 passed**. Covers authentication/CSRF/session reset,
+- `uv run pytest -q`: **134 passed**. Covers authentication/CSRF/session reset,
   official source/version validation, stale status and bounded queue handling,
   generation fences, active/unknown terminal blocking, rollback modes, failed
   backup/start, ownership markers, interrupted data swap recovery, mapped-root
@@ -22,6 +22,11 @@ authorized Proxmox VE 9.2.21 test host, using unprivileged OCI containers.
   Native browser pairing checks cover protected origin reads, fixed destinations,
   CSRF/login, session ownership, offer expiration/generation changes, secret-free
   public results and pairing without stopping active terminals.
+  Native OpenCode setup checks cover the one-time host default, preservation of
+  existing and later choices, private metadata/link rejection, runtime identity
+  fencing and keeping unrelated settings and credentials untouched. A real
+  disposable Orca runtime accepted the native settings update from no default
+  to OpenCode. Installation/default selection do not establish provider access.
 - Previous setup-Notes baseline source:
   `d78750b82f21ecd3738e26c3c9fe4e6ca349ea33`. Its GitHub Actions checks passed.
   The dedicated builder's final private OCI export also exited zero and recorded

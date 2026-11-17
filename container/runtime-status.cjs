@@ -3,6 +3,7 @@ const {spawnSync} = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const {readSettings} = require('./opencode-default.cjs');
 
 function run(command, args, timeout = 7000) {
   return spawnSync(command, args, {encoding:'utf8',timeout,maxBuffer:512*1024,env:process.env});
@@ -44,7 +45,7 @@ function accountCount(key) {
 const providers = {
   state: codexAuth ? 'ready' : 'partial',
   label: codexAuth ? 'Codex reports a native login' : 'Native setup required',
-  detail:'Install and sign in inside the runtime. A registered account alone does not prove a successful agent task.',
+  detail:'OpenCode is included in the standard image. Configure its model providers natively when needed; installation does not confirm provider access.',
   checks:[
     {name:'Codex CLI',value:hasCodex?'Installed':'Not installed'},
     {name:'OpenCode CLI',value:hasOpenCode?'Installed':'Not installed'},
@@ -81,5 +82,16 @@ if (fs.existsSync('/run/secrets/tunnel-command.json')) {
   tunnel.checks=[{name:'Local /readyz',value:local.status===0?'Responded successfully':'Not confirmed'},
     {name:'Authenticated end-to-end MCP call',value:'Not verified by this local probe'}];
 }
-console.log(JSON.stringify({schema:1,runtime:{reachable,version,active_terminals:activeTerminals,web_url:webUrl},
-  integrations:{providers,github,desktop:clients,mobile:clients,mcp:bridge,tunnel}}));
+async function publish() {
+  let hostDefault = null;
+  if (reachable) {
+    try {hostDefault=(await readSettings(process.env.ORCA_USER_DATA_PATH || path.join(os.homedir(),'.config','Orca'))).defaultTuiAgent;} catch {}
+  }
+  if (hasOpenCode && !codexAuth) providers.label=hostDefault==='opencode'?'OpenCode prepared; provider access not verified':'OpenCode installed; provider access not verified';
+  const agentNames={opencode:'OpenCode',opencode2:'OpenCode 2',codex:'Codex',claude:'Claude',blank:'Blank terminal'};
+  providers.checks.push({name:'Host default agent',value:Object.hasOwn(agentNames,hostDefault)?agentNames[hostDefault]:typeof hostDefault==='string'?'Another native agent selected':'Not selected or not observable'},
+    {name:'OpenCode provider access',value:'Not tested by this status check'});
+  console.log(JSON.stringify({schema:1,runtime:{reachable,version,active_terminals:activeTerminals,web_url:webUrl},
+    integrations:{providers,github,desktop:clients,mobile:clients,mcp:bridge,tunnel}}));
+}
+publish().catch(()=>{console.error('The native status observation could not complete.');process.exitCode=1;});
