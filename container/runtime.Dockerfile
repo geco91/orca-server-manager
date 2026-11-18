@@ -25,8 +25,10 @@ RUN echo '669199e9bdb9890b6f7f3d5a5e7c5a4307f9efa4be76b37b8725de42acc82c45  /tmp
 
 FROM debian:bookworm-slim
 RUN --mount=type=secret,id=proxy_ca,mode=0444 \
+    --mount=from=assemble,source=/etc/ssl/certs/ca-certificates.crt,target=/tmp/debian-ca.pem \
     sed -i 's|http://deb.debian.org/|https://deb.debian.org/|g' /etc/apt/sources.list.d/debian.sources \
-    && if [ -f /run/secrets/proxy_ca ]; then echo 'Acquire::https::CaInfo "/run/secrets/proxy_ca";' > /etc/apt/apt.conf.d/99build-ca; fi \
+    && if [ -f /run/secrets/proxy_ca ]; then osm_apt_ca=/run/secrets/proxy_ca; else osm_apt_ca=/tmp/debian-ca.pem; fi \
+    && printf 'Acquire::https::CaInfo "%s";\n' "$osm_apt_ca" > /etc/apt/apt.conf.d/99build-ca \
     && apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates git gh openssh-client procps libstdc++6 tini util-linux \
     python3 xvfb xauth dbus-daemon libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 libatspi2.0-0 \
