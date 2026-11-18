@@ -181,6 +181,8 @@ footer span { display: block; margin-top: 5px; }
 .overview-launch h1 { margin: 0; }
 .forge-login .code-line { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .code-line input { font: 650 1.3rem ui-monospace, monospace; letter-spacing: .1em; width: 11ch; box-sizing: content-box; }
+.authorization-url-row input { flex: 1 1 30ch; min-width: 0; padding-inline: 8px; }
+#git-setup.signed-in .sign-in-prompt, #git-setup:not(.signed-in) .sign-in-again { display: none; }
 .forge-login textarea { width: 100%; min-height: 5em; }
 .forge-status:empty { display: none; }
 .identity-line { color: var(--accent); }
