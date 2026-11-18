@@ -12,7 +12,7 @@
     {id:'gitlab',title:'GitLab',icon:'git',description:'Authorize GitLab.com with a browser code.'},
     {id:'forgejo',title:'Forgejo',icon:'git',description:'Register the runtime’s SSH key on your instance.'},
     {id:'desktop',title:'Mac desktop',icon:'Mac',description:'Pair in Orca. Pairing and current connectivity are separate.'},
-    {id:'mobile',title:'Mobile app',icon:'App',description:'Use native Orca pairing over your LAN or VPN.'},
+    {id:'mobile',title:'Orca Mobile',icon:'App',description:'Pair your phone for server workspaces and browser previews.'},
     {id:'mcp',title:'Community MCP bridge',icon:'MCP',description:'Use the existing community bridge for external coordinators.'},
     {id:'tunnel',title:'OpenAI Secure MCP Tunnel',icon:'↗',description:'Connect the selected OpenAI tunnel to the community bridge.'}
   ];
@@ -95,7 +95,8 @@
     const r=record('server');
     return heading('OVERVIEW','Your Orca workspace','Open Orca to work with repositories and agents.')+
       `<div class="button-row"><button data-action="preview-orca">Open Orca WebUI ↗</button>${setupButton('welcome','Revisit setup',true)}</div><p id="launch-result" role="status"></p>
-      <section class="panel"><h2>Server</h2>${pill(r.label,r.status)}${rows([['Orca',state.version],['Default agent','OpenCode 2'],['Deployment','Proxmox OCI']])}<button class="quiet" data-action="check" data-service="server"${disabled(state.busy)}>Refresh server status</button>${checkTime('server')}</section><div class="section-heading"><h2>Connections</h2></div>`+cards();
+      <section class="panel"><h2>Server</h2>${pill(r.label,r.status)}${rows([['Orca',state.version],['Default agent','OpenCode 2'],['Deployment','Proxmox OCI']])}<button class="quiet" data-action="check" data-service="server"${disabled(state.busy)}>Refresh server status</button>${checkTime('server')}</section>
+      <section class="panel"><h2>Browser service</h2>${pill(state.online?'Ready':'Server offline',state.online?'ready':'offline')}<p>Preview server workspaces on your phone.</p>${setupButton('mobile','Set up Orca Mobile →',true)}</section><div class="section-heading"><h2>Connections</h2></div>`+cards();
   }
   function connections() {return heading('OPTIONAL CONNECTIONS','Native setup. Technical status.','Each connection is independent. The manager does not replace native login or pairing.')+`<div class="section-heading"><h2>Guides & connections</h2><button class="quiet" data-action="check-all"${disabled(state.busy)}>Refresh all statuses</button></div>`+cards();}
   function guide(id) {
@@ -104,7 +105,8 @@
       const ssh=id==='forgejo';
       return `<p>${ssh?'Prepare the public SSH key, then register it at your Forgejo instance.':'Request a device code and complete sign-in on the provider’s authorization page.'}</p><button data-action="demo-forge" data-service="${id}">${ssh?'Prepare example public key':'Try device sign-in'}</button><p class="demo-offer" role="status"></p>`;
     }
-    if (id==='desktop'||id==='mobile') return `<ol class="guide-list"><li><strong>Request Orca’s pairing offer.</strong> The server can remain running.</li><li><strong>${id==='mobile'?'Pair in Orca Mobile.':'Add the server in your Mac client.'}</strong> ${id==='mobile'?'Scan the QR code created by Orca.':'Open Settings → Remote Orca Servers → Add Server and use Orca’s pairing link.'}</li><li><strong>Use LAN or VPN access.</strong> Keep pairing links private.</li></ol><details><summary>Native pairing command</summary>${command([id==='mobile'?'orca pair --mobile':'orca pair'])}<p class="guide-note">Orca creates the actual link and QR code. This demo creates no credentials.</p></details>${notice('Paired and online are different','A paired device can be offline. The pilot reports unknown when the native version exposes no reliable client census.','neutral')}`;
+    if (id==='mobile') return `<ol class="guide-list"><li>Connect to the server’s LAN or VPN.</li><li>Open <strong>Pair</strong> in Orca Mobile and scan the manager’s QR code.</li><li>Open a server workspace to view and control its web preview.</li></ol><button data-action="demo-mobile"${disabled(!state.online)}>Show pairing QR code</button><p class="demo-offer" role="status"></p>`;
+    if (id==='desktop') return '<p>In Orca Desktop, open <strong>Settings → Remote Orca Servers → Add Server</strong> and paste the native pairing link.</p>';
     if (id==='mcp') return `<ol class="guide-list"><li><strong>Use the existing community bridge.</strong> It runs alongside Orca and calls its native CLI.</li><li><strong>Expose Orca to external coordinators.</strong> This is the opposite direction to MCP servers used by Orca’s agents.</li><li><strong>Connect the OpenAI tunnel.</strong> The bridge is a separate component.</li></ol>${sourceLink('https://github.com/BuildContext/orca-mcp','Community MCP bridge')}${notice('Read-only check','MCP initialize, tool inventory and Orca health do not start an agent.','neutral')}`;
     return `<div class="flow" aria-label="Connection path"><b>ChatGPT / Codex</b><span>→</span><b>OpenAI Secure MCP Tunnel</b><span>→</span><b>Community bridge</b><span>→</span><b>Orca</b></div><ol class="guide-list"><li><strong>Use the selected OpenAI tunnel.</strong> Reuse its existing configuration and authentication.</li><li><strong>Connect the bridge as its target.</strong> The manager does not build another tunnel.</li><li><strong>Verify the whole path.</strong> A local process or open port does not prove end-to-end MCP access.</li></ol>${notice('Simulated integration','The real pilot keeps external tunnel status unverified until an authenticated call is observed.','neutral')}`;
   }
@@ -184,6 +186,7 @@
     const {action,page,service}=button.dataset;
     if(action==='navigate')navigate(page);
     else if(action==='preview-orca'){document.querySelector('#launch-result').textContent='In the live manager this opens the paired Orca WebUI in a new tab.';}
+    else if(action==='demo-mobile'){document.querySelector('.demo-offer').textContent='The live manager displays a private QR code here. One scan connects your phone to workspaces and the browser preview.';}
     else if(action==='demo-forge'){document.querySelector('.demo-offer').textContent=service==='forgejo'?'In the live setup, copy the public key to your instance’s SSH key settings.':'The live setup shows a one-time code and a link to the official authorization page. No account is used in this preview.';}
     else if(action==='help')document.querySelector('#demo-help').showModal();
     else if(action==='close-help')document.querySelector('#demo-help').close();
