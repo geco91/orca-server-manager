@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import secrets
 import subprocess
 import time
@@ -29,6 +30,42 @@ def manager_fixture(tmp_path):
     return create_app(
         {"TESTING": True, "STATE_DIR": str(tmp_path / "state"), "CONTROL_DIR": str(control)}
     ), control
+
+
+def test_github_copy_url_matches_the_authorize_button_and_has_its_own_target(tmp_path):
+    app, _ = manager_fixture(tmp_path)
+    client = app.test_client()
+    bootstrap(app, client)
+    html = get(client, "/git/github?setup=1").text
+    link = re.search(r'<a [^>]*href="([^"]+)"[^>]*>Authorize on github\.com', html)
+    assert link and link[1] == "https://github.com/login/device"
+    assert f'id="authorization-url" value="{link[1]}" readonly' in html[link.end() :]
+    assert 'data-copy="authorization-url" class="quiet">Copy URL</button>' in html
+    assert 'data-copy="offer-value" class="quiet">Copy code</button>' in html
+
+
+@pytest.mark.parametrize("provider", ["github", "gitlab"])
+def test_guided_provider_prioritizes_continue_when_server_is_signed_in(tmp_path, provider):
+    app, control = manager_fixture(tmp_path)
+    client = app.test_client()
+    bootstrap(app, client)
+    path = f"/git/{provider}?setup=1"
+    assert 'id="forge-continue" class="quiet"' in get(client, path).text
+    status = read_document(control / "status.json")
+    status["integrations"][provider] = {
+        "state": "ready",
+        "checks": [{"name": "Server identity", "value": "example-account"}],
+    }
+    atomic_document(control / "status.json", status)
+    html = get(client, path).text
+    assert 'id="git-setup" class="setup-shell signed-in"' in html
+    assert 'id="forge-continue">Continue to Orca' in html
+    assert html.index('id="forge-continue"') < html.index("Sign in again")
+    assert 'form="forge-start" class="quiet sign-in-again"' in html
+    assert post(client, "/welcome/continue", {"csrf_token": csrf(client, path)}).location.endswith(
+        "/welcome?step=launch"
+    )
+    assert not list((control / "requests").iterdir())
 
 
 def test_first_run_resumes_and_can_finish_without_a_git_account(tmp_path):

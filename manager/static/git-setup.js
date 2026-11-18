@@ -1,17 +1,21 @@
 'use strict';
 (() => {
   const panel = document.querySelector('#forge-login');
+  const setup = document.querySelector('#git-setup');
+  const signedInAtLoad = setup.classList.contains('signed-in');
+  const next = document.querySelector('#forge-continue');
   const start = document.querySelector('#forge-start');
-  const button = start.querySelector('button');
-  const disabled = button.disabled;
+  const signInButtons = Array.from(start.elements).filter(control => control.type === 'submit');
+  const disabled = signInButtons[0].disabled;
   const feedback = document.querySelector('#forge-status');
   const offer = document.querySelector('#offer');
   const value = document.querySelector('#offer-value');
-  const copy = document.querySelector('#copy-offer');
 
   function busy(running) {
-    button.disabled = disabled || running;
-    button.classList.toggle('busy-text', running);
+    for (const button of signInButtons) {
+      button.disabled = disabled || running;
+      button.classList.toggle('busy-text', running);
+    }
     start.setAttribute('aria-busy', String(running));
   }
   start.addEventListener('submit', () => {
@@ -20,10 +24,17 @@
     value.value = '';
     feedback.textContent = 'Waiting for the server…';
   });
-  copy.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(value.value); copy.textContent = 'Copied'; }
-    catch { value.focus(); value.select(); }
-  });
+  for (const copy of offer.querySelectorAll('button[data-copy]')) {
+    const field = document.getElementById(copy.dataset.copy);
+    const label = copy.textContent;
+    let resetLabel;
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(field.value); copy.textContent = 'Copied'; }
+      catch { field.focus(); field.select(); copy.textContent = 'Text selected'; }
+      clearTimeout(resetLabel);
+      resetLabel = setTimeout(() => { copy.textContent = label; }, 2000);
+    });
+  }
 
   const instance = document.querySelector('#forge-instance');
   if (instance) {
@@ -70,6 +81,9 @@
       let state = Object.hasOwn(messages, data.state) ? data.state : 'failed';
       if (Date.now() >= deadline && ['starting', 'waiting', 'unavailable'].includes(state)) state = 'expired';
       const pending = ['starting', 'waiting', 'unavailable'].includes(state);
+      const signedIn = state === 'authorized' || (signedInAtLoad && !['starting', 'waiting'].includes(state));
+      setup.classList.toggle('signed-in', signedIn);
+      next?.classList.toggle('quiet', !signedIn);
       const text = state === 'waiting' ? data.code : state === 'key_ready' ? data.public_key : '';
       if (value.value !== (text || '')) value.value = text || '';
       offer.hidden = !text;
