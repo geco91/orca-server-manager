@@ -74,6 +74,7 @@ def test_first_run_resumes_and_can_finish_without_a_git_account(tmp_path):
     bootstrap(app, client)
     html = get(client, "/").text
     assert "Connect your Git accounts" in html and 'id="main-nav"' not in html
+    assert "First steps in Orca" not in html
     assert all(f'href="/git/{p}?setup=1"' in html for p in ["github", "gitlab", "forgejo"])
     assert post(client, "/welcome/continue", {}).status_code == 400
     assert post(client, "/welcome/continue", {"csrf_token": csrf(client, "/")}).status_code == 303
@@ -84,6 +85,12 @@ def test_first_run_resumes_and_can_finish_without_a_git_account(tmp_path):
         "Open your Orca workspace" in html
         and 'action="/actions/web-pairing" target="_blank"' in html
     )
+    assert (
+        html.index("Open Orca WebUI")
+        < html.index("First steps in Orca")
+        < html.index("Your default agent")
+    )
+    assert "Tasks → GitHub → Issues" in html
     assert post(resumed, "/welcome/finish", {"csrf_token": csrf(resumed, "/")}).status_code == 303
     html = get(client, "/").text
     assert "Your Orca workspace" in html and 'id="main-nav"' in html

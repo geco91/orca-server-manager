@@ -85,7 +85,9 @@
   }
   function welcome() {
     if (state.page==='launch') return heading('STEP 2 OF 2','Open your Orca workspace','OpenCode 2 is the server default. In Orca’s agent picker, choose Set as default for this browser.')+
-      `<section class="panel"><button data-action="preview-orca">Open Orca WebUI ↗</button><p id="launch-result" role="status"></p></section><p>${setupButton('overview','Finish setup &amp; go to overview →',true)}</p>`;
+      `<section class="panel"><button data-action="preview-orca">Open Orca WebUI ↗</button><p id="launch-result" role="status"></p></section>`+
+      document.getElementById('orca-first-steps').innerHTML+
+      `<p>${setupButton('overview','Finish setup &amp; go to overview →',true)}</p>`;
     return heading('STEP 1 OF 2','Connect your Git accounts','Choose where you keep your repositories, or continue to Orca now.')+
       `<section class="panel"><div class="button-row">${['github','gitlab','forgejo'].map(id=>setupButton(id, services.find(s=>s.id===id).title)).join('')}</div></section><p>${setupButton('launch','Continue to Orca →')}</p>`;
   }

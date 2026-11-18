@@ -19,6 +19,7 @@
 <h1>Open your Orca workspace</h1>
 <p class="setup-intro">Open Orca in a new tab. The manager prepares the pairing link for this browser.</p>
 {% include '_open_orca.html' %}
+{% include '_orca_first_steps.html' %}
 <section class="panel setup-agent"><h2>Your default agent</h2>
 {% for row in status.integrations.providers.checks if row.name == 'Host default agent' %}<p>Server preference <strong>{{ row.value }}</strong></p>{% else %}<p>Waiting for the server’s agent preference.</p>{% endfor %}
 {% if status.runtime.opencode_agent %}<p>To use <strong>{{ status.runtime.opencode_agent }}</strong> in this browser, right-click it in Orca’s agent picker and choose <strong>Set as default</strong>. Add model providers later in your workspace.</p>{% else %}<p>Choose your browser’s default in Orca’s agent picker. The server has not reported an installed OpenCode version yet.</p>{% endif %}

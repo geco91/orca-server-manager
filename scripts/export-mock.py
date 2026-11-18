@@ -12,8 +12,13 @@ def export(destination):
     styles = "\n".join(
         path.read_text() for path in (ROOT / "manager/static/style.css", ROOT / "mock/style.css")
     )
-    result = template.replace("/* MOCK_STYLES */", styles).replace(
-        "/* MOCK_SCRIPT */", (ROOT / "mock/app.js").read_text()
+    result = (
+        template.replace("/* MOCK_STYLES */", styles)
+        .replace("/* MOCK_SCRIPT */", (ROOT / "mock/app.js").read_text())
+        .replace(
+            "<!-- ORCA_FIRST_STEPS -->",
+            (ROOT / "manager/templates/_orca_first_steps.html").read_text(),
+        )
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(result)
