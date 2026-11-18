@@ -113,8 +113,10 @@ browser_home = data / "browser"
 browser_home.mkdir(mode=0o700, exist_ok=True)
 os.chown(browser_home, 1001, 1001)
 SOCKET_DIR.mkdir(exist_ok=True)
-os.chown(SOCKET_DIR, 1001, 1000)
+# Set the mode while the entrypoint owns the inode. Compose drops CAP_FOWNER.
+os.chown(SOCKET_DIR, 0, 1000)
 os.chmod(SOCKET_DIR, 0o2750)
+os.chown(SOCKET_DIR, 1001, 1000)
 browser = None
 retry_browser = 0
 stopping = False
