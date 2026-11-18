@@ -21,6 +21,8 @@ state.mkdir(mode=0o700, exist_ok=True)
 os.chown(state, MANAGER_UID, MANAGER_UID)
 certs = data / "tls"
 certs.mkdir(mode=0o700, exist_ok=True)
+proxy_state = data / "proxy"
+proxy_state.mkdir(mode=0o700, exist_ok=True)
 address = "127.0.0.1"
 try:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -88,7 +90,10 @@ upstream = "127.0.0.1:6768"
 def start_proxy(target):
     return subprocess.Popen(
         ["/usr/bin/caddy", "run", "--config", "/app/manager.Caddyfile"],
-        env=proxy_environment(environment, target),
+        env=proxy_environment(
+            dict(environment, XDG_CONFIG_HOME=str(proxy_state), XDG_DATA_HOME=str(proxy_state)),
+            target,
+        ),
     )
 
 
