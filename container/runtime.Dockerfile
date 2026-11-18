@@ -23,7 +23,7 @@ RUN --mount=type=secret,id=proxy_ca \
 RUN echo '669199e9bdb9890b6f7f3d5a5e7c5a4307f9efa4be76b37b8725de42acc82c45  /tmp/bridge.tar.gz' | sha256sum -c - \
     && mkdir /opt/orca-mcp && tar xzf /tmp/bridge.tar.gz --strip-components=1 -C /opt/orca-mcp
 
-FROM debian:bookworm-slim
+FROM python:3.12-slim-bookworm
 RUN --mount=type=secret,id=proxy_ca,mode=0444 \
     --mount=from=assemble,source=/etc/ssl/certs/ca-certificates.crt,target=/tmp/debian-ca.pem \
     sed -i 's|http://deb.debian.org/|https://deb.debian.org/|g' /etc/apt/sources.list.d/debian.sources \

@@ -17,7 +17,7 @@ def observe(worker, job, provider, operation):
         raise ValueError("This sign-in request expired. Start a new one.")
     if job["generation"] != worker.cfg["generation"]:
         raise ValueError("The runtime changed. Start a new sign-in.")
-    worker.own_container(worker.cfg["manager_id"], role="manager")
+    worker.own_manager()
     runtime_id = worker.cfg["runtime_id"]
     worker.own_container(runtime_id)
     raw = worker.run(
@@ -53,6 +53,7 @@ def observe(worker, job, provider, operation):
             "expires_at": created.timestamp() + LIFETIME,
             **reply,
         },
+        group=worker.manager_gid,
     )
     if reply["state"] in {"starting", "waiting"}:
         worker.result(job, "running", "Waiting for authorization at the Git provider.")

@@ -10,7 +10,7 @@ from manager.control import JOB_ID, atomic_document, read_document
 from manager.pairing import PairingError, manager_origin
 
 
-def private_channel(control):
+def private_channel(control, group=101000):
     control = Path(control)
     parent = control.stat(follow_symlinks=False)
     if control.is_symlink() or parent.st_uid != 0 or parent.st_mode & 0o022:
@@ -18,14 +18,14 @@ def private_channel(control):
     path = control / "pairings"
     if not path.exists():
         path.mkdir(mode=0o700)
-        os.chown(path, 0, 101000)
+        os.chown(path, 0, group)
         os.chmod(path, 0o2710)
     info = path.stat(follow_symlinks=False)
     if (
         path.is_symlink()
         or not stat.S_ISDIR(info.st_mode)
         or info.st_uid != 0
-        or info.st_gid != 101000
+        or info.st_gid != group
         or stat.S_IMODE(info.st_mode) != 0o2710
     ):
         raise PairingError("The private pairing channel has unexpected permissions.")
@@ -66,19 +66,19 @@ def read_manager_origin(data):
     return read_manager_settings(data)["origin"]
 
 
-def publish_pairing(control, value):
-    path = private_channel(control)
+def publish_pairing(control, value, *, group=101000):
+    path = private_channel(control, group)
     if not JOB_ID.fullmatch(value.get("id", "")):
         raise PairingError("Invalid pairing request.")
-    # setgid on the root-owned directory maps group access to manager GID 1000.
+    # setgid on the root-owned directory maps group access to the dashboard account.
     atomic_document(path / (value["id"] + ".json"), value, mode=0o640)
 
 
-def prune_pairings(control, now=None):
+def prune_pairings(control, now=None, *, group=101000):
     path = Path(control) / "pairings"
     if not path.exists():
         return
-    path = private_channel(control)
+    path = private_channel(control, group)
     for item in path.glob("*.json"):
         if not JOB_ID.fullmatch(item.stem):
             continue

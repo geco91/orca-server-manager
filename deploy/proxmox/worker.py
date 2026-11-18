@@ -28,7 +28,7 @@ from deploy.proxmox.pairing import (
     read_manager_origin,
     read_manager_settings,
 )
-from manager.browser import observation, validate_offer
+from manager.browser import DESKTOP_PORT, observation, validate_offer
 from manager.control import JOB_ID, ControlError, atomic_document, read_document, utc_now
 from manager.forge import ACTIONS as FORGE_ACTIONS
 from manager.opencode_releases import LEGACY_VERSION as LEGACY_OPENCODE_VERSION
@@ -71,11 +71,13 @@ def load_config(path):
     cfg = read_document(path)
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,30}", cfg.get("installation", "")):
         raise DeploymentError("Invalid installation identity.")
-    for field in ["runtime_id", "manager_id", "builder_id"]:
-        if type(cfg.get(field)) is not int or cfg[field] < 100:
-            raise DeploymentError("A dedicated runtime, manager and builder must be assigned.")
-    if len({cfg["runtime_id"], cfg["manager_id"], cfg["builder_id"]}) != 3:
-        raise DeploymentError("Runtime, manager and builder identities must differ.")
+    guest_ids = [cfg.get("runtime_id"), cfg.get("builder_id")]
+    if "manager_id" in cfg:
+        guest_ids.append(cfg["manager_id"])
+    if any(type(guest_id) is not int or guest_id < 100 for guest_id in guest_ids):
+        raise DeploymentError("An Orca guest and a dedicated builder must be assigned.")
+    if len(set(guest_ids)) != len(guest_ids):
+        raise DeploymentError("The assigned guest identities must differ.")
     for field in ["base", "data", "builder_checkout", "builder_output"]:
         value = cfg.get(field, "")
         if not isinstance(value, str) or not re.fullmatch(r"/[a-zA-Z0-9_./-]+", value):
@@ -144,6 +146,16 @@ class Worker:
         self.runtime_data = self.private / "runtime-data"
         self.home, self.workspaces = self.runtime_data / "home", self.runtime_data / "workspaces"
         self.cache = self.private / "images"
+
+    @property
+    def manager_gid(self):
+        return 101000 if "manager_id" in self.cfg else 101001
+
+    def own_manager(self):
+        if "manager_id" in self.cfg:
+            self.own_container(self.cfg["manager_id"], role="manager")
+        else:
+            self.own_container(self.cfg["runtime_id"])
 
     def save(self):
         atomic_document(self.config_path, self.cfg)
@@ -369,6 +381,8 @@ class Worker:
             ]
         )
         metadata = read_document(manifest)
+        if "manager_id" not in self.cfg and metadata.get("layout") != "single-container":
+            raise DeploymentError("The image must include the dashboard and Orca in one container.")
         if (
             metadata.get("source_dirty")
             or metadata.get("source_commit") != self.cfg["source_commit"]
@@ -408,7 +422,7 @@ class Worker:
         return archive
 
     def runtime_create_command(self, vmid, archive):
-        return [
+        command = [
             "pct",
             "create",
             str(vmid),
@@ -444,6 +458,15 @@ class Worker:
             "--protection",
             "1",
         ]
+
+        if "manager_id" not in self.cfg:
+            command += [
+                "--mp4",
+                f"{self.data / 'manager'},mp=/data",
+                "--mp5",
+                f"{self.control},mp=/control",
+            ]
+        return command
 
     def candidate(self, archive):
         vmid = int(self.run(["pvesh", "get", "/cluster/nextid"]).strip())
@@ -519,6 +542,24 @@ class Worker:
                 and runtime.get("version") == self.cfg["version"]
                 and runtime.get("opencode_version") == self.cfg["opencode_version"]
             ):
+                if "manager_id" in self.cfg:
+                    return True
+                try:
+                    self.run(
+                        [
+                            "pct",
+                            "exec",
+                            str(self.cfg["runtime_id"]),
+                            "--",
+                            "/usr/local/bin/python3",
+                            "-c",
+                            "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8080/healthz', timeout=3)",
+                        ],
+                        timeout=8,
+                    )
+                except (DeploymentError, OSError, subprocess.TimeoutExpired):
+                    time.sleep(3)
+                    continue
                 return True
             time.sleep(3)
         return False
@@ -694,7 +735,7 @@ class Worker:
 
     def tick(self):
         try:
-            prune_pairings(self.control)
+            prune_pairings(self.control, group=self.manager_gid)
         except PairingError as error:
             print(str(error), file=sys.stderr)
         try:
@@ -746,12 +787,13 @@ class Worker:
         observed = self.probe()
         if observation(observed.get("browser"))["state"] != "ready":
             raise DeploymentError("The runtime browser service is not ready yet.")
-        self.own_container(self.cfg["manager_id"], role="manager")
+        self.own_manager()
         settings = read_manager_settings(self.data)
         endpoint = settings.get("mobile_endpoint")
         if endpoint not in {
             settings["origin"].replace("https://", "wss://", 1) + "/orca-mobile",
-            settings["origin"].replace("https://", "ws://", 1) + ":6768",
+            settings["origin"].replace("https://", "ws://", 1)
+            + f":{DESKTOP_PORT if 'manager_id' not in self.cfg else 6768}",
         }:
             raise DeploymentError("The manager mobile endpoint is unavailable.")
         raw = self.run(
@@ -784,12 +826,12 @@ class Worker:
             validate_offer(payload, endpoint, job["id"], self.cfg["generation"])
         except (TypeError, KeyError, ValueError):
             raise DeploymentError("Orca did not return a mobile pairing code.") from None
-        publish_pairing(self.control, payload)
+        publish_pairing(self.control, payload, group=self.manager_gid)
         self.result(job, "completed", "The private native mobile pairing code is ready.")
 
     def pair_web(self, job):
         self.check_pairing_age(job)
-        self.own_container(self.cfg["manager_id"], role="manager")
+        self.own_manager()
         observed = self.probe().get("runtime", {})
         if observed.get("reachable") is not True or not observed.get("web_url"):
             raise DeploymentError(
@@ -816,7 +858,7 @@ class Worker:
             timeout=30,
         )
         payload = native_pairing(raw, origin, job["id"], self.cfg["generation"])
-        publish_pairing(self.control, payload)
+        publish_pairing(self.control, payload, group=self.manager_gid)
         self.result(
             job,
             "completed",

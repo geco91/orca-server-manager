@@ -56,7 +56,7 @@ def mobile_endpoint(origin, interface_address, certificate_names):
         == {"subject=CN=Orca Server Manager", "issuer=CN=Orca Server Manager"}
         and any(local in ipaddress.ip_network(network) for network in networks)
     ):
-        return f"ws://{local}:6768"
+        return f"ws://{local}:{DESKTOP_PORT}"
     return origin.replace("https://", "wss://", 1) + "/orca-mobile"
 
 

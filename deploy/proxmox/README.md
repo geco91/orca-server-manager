@@ -38,10 +38,10 @@ builder, then build from a clean tree:
 
 ```bash
 bash deploy/proxmox/prepare-debian.sh --apply
-python3 scripts/build-oci.py --version 1.4.261 --opencode-version 2.3.0 --manager --output /srv/orca-oci
+python3 scripts/build-oci.py --version 1.4.261 --opencode-version 2.3.0 --output /srv/orca-oci
 ```
 
-Output: `orca-runtime-1.4.261.oci.tar`, `orca-manager-0.2.0.oci.tar` and
+Output: `orca-runtime-1.4.261.oci.tar` and
 `manifest-1.4.261.json`. Transfer these privately through the existing SSH/SCP
 connection. The worker rejects a different/dirty manager source or mismatched
 upstream/OCI checksum. No registry push, GitHub account pairing or public image
@@ -73,15 +73,14 @@ python3 deploy/proxmox/install.py --config /root/orca-pilot.json \
 ```
 
 The installer verifies IDs, clean source, ownership, OCI format and checksums;
-creates two unprivileged CTs with explicit mounts; starts them; and installs
+creates and starts one unprivileged CT with explicit mounts and installs
 `orca-manager-INSTALLATION.service/.timer`. No force flags, host socket mounts,
 privileged mode or automatic cleanup are used. Failed imports leave inspectable
 partial resources and the saved installation plan; the installer refuses to
 reuse a previous base directory. Do not rerun by deleting it blindly.
-If the initial import failed before either CT exists, inspect the native PVE task
+If the initial import failed before the application CT exists, inspect the native PVE task
 log and the saved plan, correct the cause, then explicitly use `--apply --resume`.
-This path requires the same initial installation, generation zero and both IDs
-still unused. It never replaces an existing CT or reinitializes an updated deployment.
+This path requires the same initial installation, generation zero and an unused application ID. It never replaces an existing CT or reinitializes an updated deployment.
 
 The importer temporarily stages each image for mapped root UID 100000, because
 PVE extracts unprivileged OCI archives in a user namespace. Only that UID can
@@ -100,7 +99,7 @@ explicit implementation review before use.
 ## First trial
 
 Read the guest IPs from PVE, open the manager via HTTPS and follow the native
-setup guides. Copy the first-time setup code from the **manager container →
+setup guides. Copy the first-time setup code from the **Orca container →
 Summary → Notes**; the installer/host worker publishes it there and removes the
 copy after it is consumed. The ownership marker and operator notes are preserved.
 No token is printed to installation logs or command arguments. Console recovery and native commands are in

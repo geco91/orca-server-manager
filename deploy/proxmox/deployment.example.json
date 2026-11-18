@@ -1,7 +1,6 @@
 {
   "installation": "pilot",
   "runtime_id": 201,
-  "manager_id": 202,
   "builder_id": 200,
   "base": "/var/lib/orca-manager-pilot",
   "data": "/mnt/orca-manager-pilot",
@@ -15,7 +14,7 @@
   "ssh_config": "/root/.ssh/orca-pilot-config",
   "builder_checkout": "/srv/orca-server-manager",
   "builder_output": "/srv/orca-oci",
-  "runtime_memory": 3072,
+  "runtime_memory": 4096,
   "runtime_cores": 2,
   "generation": 0
 }

@@ -12,5 +12,3 @@ docker build "${build_args[@]}" -f container/runtime.Dockerfile \
   -t orca-server-manager/runtime:1.4.261 .
 docker build "${build_args[@]}" -f container/providers.Dockerfile \
   -t orca-server-manager/runtime-tools:1.4.261 .
-docker build "${build_args[@]}" -f container/manager-oci.Dockerfile \
-  -t orca-server-manager/manager-oci:0.2.0 .
