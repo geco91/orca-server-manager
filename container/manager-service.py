@@ -11,13 +11,14 @@ from pathlib import Path
 from manager.browser import mobile_endpoint
 from manager.control import atomic_document
 from manager.pairing import manager_origin
-from manager.proxy import proxy_environment, proxy_target
+from manager.proxy import proxy_environment
 
 data = Path(os.environ.get("OSM_DATA_DIR", "/data"))
 data.mkdir(parents=True, exist_ok=True)
+MANAGER_UID = 1001
 state = data / "manager"
 state.mkdir(mode=0o700, exist_ok=True)
-os.chown(state, 1000, 1000)
+os.chown(state, MANAGER_UID, MANAGER_UID)
 certs = data / "tls"
 certs.mkdir(mode=0o700, exist_ok=True)
 address = "127.0.0.1"
@@ -81,12 +82,12 @@ atomic_document(
     data / "manager-origin.json", {"origin": origin, "mobile_endpoint": phone_endpoint}, mode=0o644
 )
 environment["OSM_PHONE_ENDPOINT"] = phone_endpoint
-upstream = proxy_target(os.environ.get("OSM_CONTROL_DIR"), os.environ.get("OSM_ORCA_UPSTREAM", ""))
+upstream = "127.0.0.1:6768"
 
 
 def start_proxy(target):
     return subprocess.Popen(
-        ["/usr/bin/caddy", "run", "--config", "/etc/caddy/Caddyfile"],
+        ["/usr/bin/caddy", "run", "--config", "/app/manager.Caddyfile"],
         env=proxy_environment(environment, target),
     )
 
@@ -104,12 +105,31 @@ children = [
         ],
         cwd="/app",
         env=environment,
-        user=1000,
-        group=1000,
+        user=MANAGER_UID,
+        group=MANAGER_UID,
         extra_groups=[],
     ),
     start_proxy(upstream),
 ]
+if os.environ.get("OSM_DASHBOARD_ONLY") != "1":
+    children.append(
+        subprocess.Popen(
+            ["/opt/orca/node-bin/node", "/opt/osm/runtime-launch.cjs"],
+            cwd="/workspaces",
+            env={
+                **os.environ,
+                "HOME": "/home/orca",
+                "USER": "orca",
+                "LOGNAME": "orca",
+                "ORCA_USER_DATA": "/home/orca/.config/Orca",
+                "ORCA_USER_DATA_PATH": "/home/orca/.config/Orca",
+                "PATH": "/opt/orca/node-bin:/usr/local/bin:/usr/bin:/bin",
+            },
+            user=1000,
+            group=1000,
+            extra_groups=[],
+        )
+    )
 stopping = False
 
 
@@ -121,19 +141,7 @@ def stop(*_):
 signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 try:
-    observed_proxy = 0
     while not stopping and all(child.poll() is None for child in children):
-        if time.monotonic() - observed_proxy > 2:
-            observed_proxy = time.monotonic()
-            candidate = proxy_target(
-                os.environ.get("OSM_CONTROL_DIR"), os.environ.get("OSM_ORCA_UPSTREAM", "")
-            )
-            if candidate and candidate != upstream:
-                # Reuse Caddy; only a changed assigned runtime address restarts this child.
-                children[1].terminate()
-                children[1].wait(timeout=15)
-                children[1] = start_proxy(candidate)
-                upstream = candidate
         time.sleep(0.25)
 finally:
     for child in children:
@@ -141,7 +149,9 @@ finally:
             child.terminate()
     for child in children:
         try:
-            child.wait(timeout=15)
+            child.wait(timeout=25)
         except subprocess.TimeoutExpired:
             child.kill()
             child.wait()
+if not stopping:
+    raise SystemExit("An application service stopped unexpectedly.")

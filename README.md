@@ -5,14 +5,14 @@ projects, sessions and worktrees in **Orca**. The manager provides native setup
 guides, technical observations and an explicit version-change/rollback process.
 
 **Native pilot verified, 17 November 2026:** the English HTTPS manager and Orca
-runtime run in unprivileged Proxmox OCI containers. Real version changes and both
+runtime were tested on Proxmox. Real version changes and both
 rollback modes passed with disposable data. Private builds run in a dedicated
 Debian VM. The runtime includes the virtual browser used by Orca Mobile. The phone pairs by scanning one native QR code. Provider logins, Mac pairing and external tunnel access use their native setup. See the [validation record](docs/VALIDATION.md).
 
 ## Native Proxmox OCI pilot
 
-The target is two **unprivileged native Proxmox OCI containers**: manager and Orca
-runtime. A separate Debian builder produces private OCI archives; Docker runs
+The dashboard, Orca runtime and mobile browser run in **one unprivileged native
+Proxmox OCI container**. A separate Debian builder produces the private image. Docker runs
 only in that build guest. The Proxmox host runs a small, scoped queue worker.
 This does not substitute a Docker VM for the intended native OCI deployment.
 
@@ -42,7 +42,7 @@ Orca's native browser-pairing link and opens the original WebUI in a new tab
 through its HTTPS endpoint. **Pairing details & manual fallback** provides the
 actual URL/code and instructions if needed; no terminal lookup is required.
 Its browser files come from the matching checksummed upstream
-desktop package; the runtime still runs the headless server, without Electron.
+desktop package; the original headless runtime serves that bundle.
 Orca performs the pairing and confirms the connection. The manager login alone
 does not mean a browser is paired.
 
@@ -71,7 +71,7 @@ is a manager-maintained approval list.
 
 ```bash
 # On the dedicated builder, from a clean checkout of the intended commit:
-python3 scripts/build-oci.py --version 1.4.261 --opencode-version 2.3.0 --manager --output /srv/orca-oci
+python3 scripts/build-oci.py --version 1.4.261 --opencode-version 2.3.0 --output /srv/orca-oci
 # Creates private OCI archives and a source/checksum manifest. Does not publish.
 ```
 
@@ -85,8 +85,8 @@ runtime observations as unknown and disables version changes.
 cp config/.env.example .env
 bash scripts/build.sh
 docker compose --env-file .env -f compose/compose.yaml up -d --wait
-docker compose --env-file .env -f compose/compose.yaml exec --user 1000:1000 \
-  manager cat /data/manager/bootstrap.token
+docker compose --env-file .env -f compose/compose.yaml exec --user 1001:1001 \
+  runtime cat /data/manager/bootstrap.token
 ```
 
 Open `https://localhost`. Verify/trust the manager's self-signed certificate or
@@ -94,7 +94,7 @@ install your own certificate in its persistent `/data/tls` directory. Set your
 own administrator password with 8–256 characters. The one-time setup token is
 removed; passwords are stored as scrypt hashes. Ports bind to host loopback by
 default. For LAN/VPN access, configure the bind address, origin, trusted hostnames
-and certificate SAN deliberately. Manager and runtime data persist separately.
+and certificate SAN deliberately. Manager state, runtime HOME and workspaces use separate persistent volumes in the same container.
 
 The [offline prototype](mock/README.md) can be tried without a server or account:
 

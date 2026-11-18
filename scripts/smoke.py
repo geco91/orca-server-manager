@@ -52,6 +52,7 @@ def main():
         environment = dict(
             os.environ,
             OSM_HTTP_PORT=str(http_port),
+            ORCA_BROWSER_PORT=str(free_port()),
             OSM_HTTPS_PORT=str(https_port),
             OSM_ORIGIN=origin,
             ORCA_PORT=str(free_port()),
@@ -81,7 +82,7 @@ def main():
         try:
             compose("up", "-d", "--wait", "--wait-timeout", "120")
             certificate = temporary / "server.crt"
-            compose("cp", "manager:/data/tls/server.crt", str(certificate))
+            compose("cp", "runtime:/data/tls/server.crt", str(certificate))
             browser = build_opener(
                 ProxyHandler({}),
                 HTTPCookieProcessor(http.cookiejar.CookieJar()),
@@ -132,8 +133,8 @@ def main():
                 "exec",
                 "-T",
                 "--user",
-                "1000:1000",
-                "manager",
+                "1001:1001",
+                "runtime",
                 "cat",
                 "/data/manager/bootstrap.token",
             ).strip()
@@ -163,7 +164,15 @@ def main():
             else:
                 raise AssertionError("CSRF-less mutation was accepted")
             native = json.loads(
-                compose("exec", "-T", "runtime", "node", "/opt/osm/runtime-status.cjs")
+                compose(
+                    "exec",
+                    "-T",
+                    "--user",
+                    "1000:1000",
+                    "runtime",
+                    "node",
+                    "/opt/osm/runtime-status.cjs",
+                )
             )
             assert native["runtime"]["reachable"] is True
             assert native["runtime"]["version"] == "1.4.261"
@@ -187,6 +196,8 @@ def main():
             compose(
                 "exec",
                 "-T",
+                "--user",
+                "1000:1000",
                 "runtime",
                 "sh",
                 "-c",
@@ -200,7 +211,6 @@ def main():
                 "--wait-timeout",
                 "120",
                 "runtime",
-                "manager",
             )
             for _ in range(20):
                 try:
@@ -215,7 +225,15 @@ def main():
                 == "persistence-smoke"
             )
             native = json.loads(
-                compose("exec", "-T", "runtime", "node", "/opt/osm/runtime-status.cjs")
+                compose(
+                    "exec",
+                    "-T",
+                    "--user",
+                    "1000:1000",
+                    "runtime",
+                    "node",
+                    "/opt/osm/runtime-status.cjs",
+                )
             )
             assert (
                 native["runtime"]["reachable"] and native["integrations"]["mcp"]["state"] == "ready"
@@ -223,7 +241,15 @@ def main():
             token_file.chmod(0o000)
             compose("up", "-d", "--force-recreate", "--wait", "--wait-timeout", "120", "runtime")
             native = json.loads(
-                compose("exec", "-T", "runtime", "node", "/opt/osm/runtime-status.cjs")
+                compose(
+                    "exec",
+                    "-T",
+                    "--user",
+                    "1000:1000",
+                    "runtime",
+                    "node",
+                    "/opt/osm/runtime-status.cjs",
+                )
             )
             assert native["runtime"]["reachable"] is True
             assert native["integrations"]["mcp"]["state"] == "error"

@@ -12,7 +12,7 @@ Updated 17 November 2026. See [original brief](PROJECT_BRIEF.md) and the
 | Update/rollback | Real native version changes, software-only rollback retaining newer data, full rollback restoring saved data; generation fences and interruption handling | Recovery under further host/storage failure scenarios and operator experience |
 | MCP | Existing pinned community bridge, private token, read-only default, real local initialize/tools/Orca health | Explicit dispatch setup and external delegation |
 | Tunnel | Existing OpenAI binary reused and executable in the native runtime; separate private profile mounts/probe prepared | Dedicated native profile and authenticated end-to-end external MCP call |
-| Deployment | Dedicated builder VM/data filesystem, native manager/runtime OCI CTs, private checksum/source manifests and scoped host timer | Independent data backup/restore procedure and deliberate retention cleanup |
+| Deployment | Dedicated builder VM/data filesystem, one native application OCI CT, private checksum/source manifests and scoped host timer | Independent data backup/restore procedure and deliberate retention cleanup |
 
 The explicitly authorized test deployment is running; native image replacement
 and both return paths passed with disposable data. The temporary test account

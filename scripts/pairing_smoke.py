@@ -23,7 +23,9 @@ class PairingWorker:
             "-T",
             "--user",
             user,
-            "manager",
+            "--workdir",
+            "/app",
+            "runtime",
             "python",
             "-c",
             script,
@@ -38,12 +40,12 @@ from pathlib import Path
 from manager.control import atomic_document, utc_now
 root = Path('/control')
 root.mkdir(exist_ok=True)
-for name, owner, mode in [('requests',1000,0o700),('results',0,0o755),('pairings',0,0o2710)]:
+for name, owner, mode in [('requests',1001,0o700),('results',0,0o755),('pairings',0,0o2710)]:
     path = root/name
     if not path.exists():
         path.mkdir()
         os.chmod(path,mode)
-        os.chown(path,owner,1000 if name == 'pairings' else owner)
+        os.chown(path,owner,1001 if name == 'pairings' else owner)
 native = json.load(sys.stdin)
 atomic_document(root/'status.json',dict(schema=1,observed_at=utc_now(),runtime=native['runtime'],
     integrations=native['integrations'],deployment=dict(version='1.4.261',generation=1)),mode=0o644)
@@ -61,7 +63,7 @@ from pathlib import Path
 from manager.control import read_document
 print(json.dumps([read_document(p) for p in Path('/control/requests').glob('*.json')]))
 """,
-                user="1000:1000",
+                user="1001:1001",
             )
         )
         for job in jobs:
@@ -70,6 +72,8 @@ print(json.dumps([read_document(p) for p in Path('/control/requests').glob('*.js
                 self.compose(
                     "exec",
                     "-T",
+                    "--user",
+                    "1000:1000",
                     "runtime",
                     "orca",
                     "pair",
@@ -97,7 +101,7 @@ atomic_document(root/'results'/(payload['id']+'.json'),dict(id=payload['id'],sta
             self.manager(
                 "import json,sys;from pathlib import Path;"
                 "(Path('/control/requests')/(json.load(sys.stdin)+'.json')).unlink()",
-                user="1000:1000",
+                user="1001:1001",
                 document=job["id"],
             )
 
@@ -123,7 +127,7 @@ def check_pairing(compose, native, origin, page, post, csrf, password):
     assert response["state"] == "ready", "The private pairing endpoint did not become ready"
     assert response["pairing"]["code"] not in page("/api/status")
     assert response["pairing"]["code"] not in compose(
-        "exec", "-T", "manager", "cat", "/control/results/" + endpoint.rsplit("/", 1)[1] + ".json"
+        "exec", "-T", "runtime", "cat", "/control/results/" + endpoint.rsplit("/", 1)[1] + ".json"
     )
     if os.environ.get("OSM_BROWSER_QA") != "1":
         return

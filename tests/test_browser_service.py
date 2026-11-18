@@ -82,7 +82,7 @@ def test_phone_qr_needs_login_csrf_and_native_readiness(monkeypatch, tmp_path):
 def test_native_lan_offer_only_for_the_own_pilot_address_and_certificate():
     cert = "subject=CN=Orca Server Manager\nissuer=CN=Orca Server Manager\n"
     origin = "https://192.168.1.12"
-    assert browser.mobile_endpoint(origin, "192.168.1.12", cert) == "ws://192.168.1.12:6768"
+    assert browser.mobile_endpoint(origin, "192.168.1.12", cert) == "ws://192.168.1.12:6770"
     for address, interface, names in [
         (origin, "192.168.1.13", cert),
         (origin, "192.168.1.12", "issuer=CN=Private CA"),

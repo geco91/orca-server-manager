@@ -128,19 +128,20 @@ def outcome(worker, request):
     return read_document(worker.results / f"{request['id']}.json")["state"]
 
 
-def test_native_plan_is_read_only_and_separates_the_manager(deployment, tmp_path):
+def test_native_plan_creates_one_unprivileged_application_guest(deployment, tmp_path):
     worker, pve = deployment
-    proposed = plan(worker.cfg, tmp_path / "archives")
+    cfg = dict(worker.cfg)
+    cfg.pop("manager_id")
+    proposed = plan(cfg, tmp_path / "archives")
     assert not pve.commands
-    commands = proposed["commands"]
-    assert commands[0][2] == "201" and commands[1][2] == "202"
-    for command in commands[:2]:
-        assert command[command.index("--unprivileged") + 1] == "1"
-        assert "--force" not in command
-        assert "--features" not in command
-    assert "/control" in " ".join(commands[1])
-    assert "/private/runtime-data/home" in " ".join(commands[0])
-    assert "/private/runtime-data/home" not in " ".join(commands[1])
+    creates = [command for command in proposed["commands"] if command[:2] == ["pct", "create"]]
+    assert len(creates) == 1
+    command = creates[0]
+    assert command[2] == "201" and command[command.index("--unprivileged") + 1] == "1"
+    assert command[command.index("--mp4") + 1].endswith(",mp=/data")
+    assert command[command.index("--mp5") + 1].endswith(",mp=/control")
+    assert "/private/runtime-data/home" in " ".join(command)
+    assert "--force" not in command and "--features" not in command
     assert proposed["builder"]["create"] is False
 
 
@@ -410,7 +411,8 @@ def test_worker_prepares_native_pairing_without_stopping_work_or_publishing_secr
     worker.run = run
     monkeypatch.setattr("deploy.proxmox.worker.read_manager_origin", lambda _: ORIGIN)
     monkeypatch.setattr(
-        "deploy.proxmox.worker.publish_pairing", lambda directory, payload: private.append(payload)
+        "deploy.proxmox.worker.publish_pairing",
+        lambda directory, payload, **_: private.append(payload),
     )
     request = job("pair_web")
     worker.execute(request)
@@ -570,7 +572,7 @@ def test_worker_requests_mobile_offer_only_from_the_runtime(deployment, monkeypa
         lambda data: {"origin": "https://localhost", "mobile_endpoint": endpoint},
     )
     monkeypatch.setattr(
-        "deploy.proxmox.worker.publish_pairing", lambda control, value: sent.append(value)
+        "deploy.proxmox.worker.publish_pairing", lambda control, value, **_: sent.append(value)
     )
 
     def native(args, **kwargs):

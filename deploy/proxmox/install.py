@@ -33,46 +33,9 @@ def archive_check(path, checksum):
         raise DeploymentError("Expected an OCI archive, not a Docker archive or rootfs tar.")
 
 
-def manager_create_command(cfg, archive):
-    data = Path(cfg["data"])
-    return [
-        "pct",
-        "create",
-        str(cfg["manager_id"]),
-        str(archive),
-        "--hostname",
-        "orca-manager-" + cfg["installation"],
-        "--description",
-        f"OSM:{cfg['installation']}:manager",
-        "--unprivileged",
-        "1",
-        "--ostype",
-        "unmanaged",
-        "--rootfs",
-        f"{cfg['storage']}:8",
-        "--memory",
-        "2048",
-        "--cores",
-        "2",
-        "--swap",
-        "256",
-        "--net0",
-        f"name=eth0,bridge={cfg['bridge']},ip=dhcp,firewall=1",
-        "--mp0",
-        f"{data / 'manager'},mp=/data",
-        "--mp1",
-        f"{data / 'control'},mp=/control",
-        "--onboot",
-        "1",
-        "--protection",
-        "1",
-    ]
-
-
 def plan(cfg, archive_dir):
     worker = Worker(cfg, Path(cfg["base"]) / "deployment.json")
     runtime = archive_dir / f"orca-runtime-{cfg['version']}.oci.tar"
-    manager = archive_dir / "orca-manager-0.2.0.oci.tar"
     return {
         "mode": "plan only; no host changes",
         "installation": cfg["installation"],
@@ -80,16 +43,14 @@ def plan(cfg, archive_dir):
         "data_mount": cfg["data"],
         "commands": [
             worker.runtime_create_command(cfg["runtime_id"], runtime),
-            manager_create_command(cfg, manager),
             ["pct", "set", str(cfg["runtime_id"]), "--onboot", "1"],
             ["pct", "start", str(cfg["runtime_id"])],
-            ["pct", "start", str(cfg["manager_id"])],
         ],
         "notes": [
             "The OCI extractor reads a temporary copy as mapped root; private backups stay inaccessible.",
             "Requires a dedicated builder already assigned with the matching ownership marker.",
             "Requires an empty, dedicated, mounted data filesystem; never formats disks.",
-            "Creates two unprivileged OCI containers; does not replace an existing guest.",
+            "Creates one unprivileged application container with persistent mounts.",
             "Installs a scoped root worker and timer; no web-facing host shell or Docker socket.",
             "Existing clients, provider logins and the OpenAI tunnel still use native setup.",
         ],
@@ -97,7 +58,7 @@ def plan(cfg, archive_dir):
 
 
 def validate_resume(saved, cfg):
-    fields = ["installation", "data", "runtime_id", "manager_id", "builder_id", "version"]
+    fields = ["installation", "data", "runtime_id", "builder_id", "version"]
     if (
         any(saved.get(key) != cfg.get(key) for key in fields)
         or type(saved.get("generation")) is not int
@@ -113,6 +74,8 @@ def apply(cfg, source_config, archive_dir, resume=False):
         raise DeploymentError("Apply only as administrator on the assigned test Proxmox host.")
     # Full administrator-owned configuration validation happens before any change.
     cfg = load_config(source_config)
+    if "manager_id" in cfg:
+        raise DeploymentError("Use a single-container configuration for a fresh installation.")
     base, data = Path(cfg["base"]), Path(cfg["data"])
     if base.exists() and not resume:
         raise DeploymentError("Deployment base already exists; refusing an overwrite.")
@@ -145,14 +108,13 @@ def apply(cfg, source_config, archive_dir, resume=False):
             raise DeploymentError("A worker unit with this installation name already exists.")
     if not resume and any(item.name != "lost+found" for item in data.iterdir()):
         raise DeploymentError("The dedicated data filesystem is not empty.")
-    for vmid in [cfg["runtime_id"], cfg["manager_id"]]:
-        existing = subprocess.run(
-            ["pvesh", "get", "/cluster/nextid", "--vmid", str(vmid)],
-            capture_output=True,
-            check=False,
-        )
-        if existing.returncode:
-            raise DeploymentError("An assigned container ID is already occupied.")
+    existing = subprocess.run(
+        ["pvesh", "get", "/cluster/nextid", "--vmid", str(cfg["runtime_id"])],
+        capture_output=True,
+        check=False,
+    )
+    if existing.returncode:
+        raise DeploymentError("The assigned container ID is already occupied.")
     worker = Worker(cfg, base / "deployment.json")
     worker.own_builder()
     # The selected build must come from exactly this clean source checkout.
@@ -162,6 +124,7 @@ def apply(cfg, source_config, archive_dir, resume=False):
     if (
         dirty
         or commit != cfg["source_commit"]
+        or metadata.get("layout") != "single-container"
         or metadata.get("source_dirty")
         or metadata.get("source_commit") != commit
         or metadata.get("orca_version") != cfg["version"]
@@ -170,19 +133,15 @@ def apply(cfg, source_config, archive_dir, resume=False):
         raise DeploymentError(
             "Installer, configuration and OCI manifest must name the same clean source."
         )
-    expected = {
-        "runtime": archive_dir / f"orca-runtime-{cfg['version']}.oci.tar",
-        "manager": archive_dir / "orca-manager-0.2.0.oci.tar",
-    }
-    for role, archive in expected.items():
-        archive_check(archive, metadata["archives"][role]["sha256"])
+    archive = archive_dir / f"orca-runtime-{cfg['version']}.oci.tar"
+    archive_check(archive, metadata["archives"]["runtime"]["sha256"])
     if shutil.disk_usage(data).free < 10 * 2**30:
         raise DeploymentError("At least 10 GiB must be free on the dedicated data filesystem.")
     base.mkdir(mode=0o700, parents=True, exist_ok=resume)
     # Keep the root-owned parent out of both guests. Only explicit children are mounted.
     for path, owner, mode in [
         (data / "control", 0, 0o755),
-        (data / "control/requests", 101000, 0o700),
+        (data / "control/requests", 101001, 0o700),
         (data / "control/results", 0, 0o755),
         (data / "private", 0, 0o700),
         (data / "private/runtime-data", 0, 0o700),
@@ -201,13 +160,10 @@ def apply(cfg, source_config, archive_dir, resume=False):
     atomic_document(base / "deployment.json", cfg)
     # Persist the execution plan before importing; failures leave inspectable resources, never delete.
     atomic_document(base / "installation-plan.json", plan(cfg, archive_dir))
-    with worker.import_archive(expected["runtime"]) as staged:
+    with worker.import_archive(archive) as staged:
         run(worker.runtime_create_command(cfg["runtime_id"], staged), timeout=300)
-    with worker.import_archive(expected["manager"]) as staged:
-        run(manager_create_command(cfg, staged), timeout=300)
     run(["pct", "set", str(cfg["runtime_id"]), "--onboot", "1"])
     run(["pct", "start", str(cfg["runtime_id"])], timeout=90)
-    run(["pct", "start", str(cfg["manager_id"])], timeout=90)
     try:
         sync_setup_notes(cfg)
     except SetupNotesError:

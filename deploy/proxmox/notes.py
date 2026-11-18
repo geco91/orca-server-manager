@@ -27,11 +27,11 @@ PVE::LXC::Config->lock_config($p->{id}, sub {
 """
 
 
-def read_setup_code(data):
+def read_setup_code(data, owner_uid=101000):
     """Read only a bounded private token; never follow guest-controlled links."""
     with ExitStack() as stack:
         parent = None
-        for path, owner in [(Path(data) / "manager", 100000), ("manager", 101000)]:
+        for path, owner in [(Path(data) / "manager", 100000), ("manager", owner_uid)]:
             try:
                 fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
             except FileNotFoundError:
@@ -57,7 +57,7 @@ def read_setup_code(data):
         info = os.fstat(fd)
         if (
             not stat.S_ISREG(info.st_mode)
-            or info.st_uid != 101000
+            or info.st_uid != owner_uid
             or info.st_mode & 0o077
             or info.st_nlink != 1
             or info.st_size > 128
@@ -69,8 +69,8 @@ def read_setup_code(data):
         return value.decode("ascii")
 
 
-def setup_description(existing, installation, code):
-    marker = f"OSM:{installation}:manager"
+def setup_description(existing, installation, code, role="manager"):
+    marker = f"OSM:{installation}:{role}"
     if marker not in existing.splitlines():
         raise SetupNotesError("Refusing to change Notes of an unrelated container.")
     start = f"<!-- OSM:{installation}:setup:start -->"
@@ -123,7 +123,9 @@ def sync_setup_notes(cfg):
             raise SetupNotesError("Could not synchronize manager setup Notes.")
         return result.stdout
 
-    raw = command(["pct", "config", str(cfg["manager_id"])])
+    legacy = "manager_id" in cfg
+    vmid = cfg["manager_id"] if legacy else cfg["runtime_id"]
+    raw = command(["pct", "config", str(vmid)])
     existing = unquote(
         next(
             (
@@ -134,14 +136,14 @@ def sync_setup_notes(cfg):
             "",
         )
     )
-    code = read_setup_code(cfg["data"])
-    description = setup_description(existing, cfg["installation"], code)
+    code = read_setup_code(cfg["data"], 101000 if legacy else 101001)
+    description = setup_description(
+        existing, cfg["installation"], code, "manager" if legacy else "runtime"
+    )
     if description == existing:
         return
     # The token stays on this host: JSON goes through stdin, never argv or logs.
     command(
         ["perl", "-MPVE::LXC::Config", "-MJSON::PP", "-e", UPDATE_DESCRIPTION],
-        input=json.dumps(
-            {"id": cfg["manager_id"], "expected": existing, "description": description}
-        ),
+        input=json.dumps({"id": vmid, "expected": existing, "description": description}),
     )

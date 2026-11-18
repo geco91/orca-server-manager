@@ -5,12 +5,19 @@ The UI and operational text default to English.
 
 ```mermaid
 flowchart LR
-  Browser -->|HTTPS| Manager[Manager OCI: Caddy + Flask]
+  subgraph App[Unprivileged Orca OCI]
+    Manager[Dashboard and HTTPS proxy]
+    Runtime[Orca Runtime]
+    Preview[Mobile Browser]
+    Manager -->|loopback| Runtime
+    Manager -->|loopback| Preview
+  end
+  Browser -->|HTTPS| Manager
   Manager -->|bounded file requests| Worker[Scoped Proxmox host worker]
-  Worker -->|native PVE commands| Runtime[Unprivileged Orca OCI]
+  Worker -->|native PVE commands| App
   Worker -->|fixed SSH alias| Builder[Dedicated Debian build VM]
   Builder -->|private OCI archive + hashes| Worker
-  Client[Orca Mac / Mobile] -->|native pairing over LAN or VPN| Runtime
+  Client[Orca Mac / Mobile] -->|native pairing over LAN or VPN| App
   Coordinator[ChatGPT / Codex] --> Tunnel[Existing OpenAI Secure MCP Tunnel]
   Tunnel --> Bridge[Community bridge in runtime]
   Bridge -->|native CLI| Runtime
@@ -31,13 +38,10 @@ privileged container or host shell is exposed to the UI.
 The worker's root privileges are real: it imports OCI archives, stops/starts only
 scoped guests, owns backups and binds their data. Keep its checkout/configuration
 administrator-owned. The installation is for one trusted operator, not multiple
-untrusted tenants. The manager guest runs its HTTPS entrypoint as mapped guest
-root and drops Flask to UID 1000. The runtime and agents run as UID 1000. All
-native CTs are unprivileged. Docker trial capabilities are reduced to the three
-needed for manager file ownership and dropping UID/GID; the runtime drops all.
-
-Manager data, runtime HOME and workspaces are explicit separate mounts. Provider
-credentials and pairing state stay in runtime HOME. The manager cannot read it.
+untrusted tenants. The mapped guest-root supervisor starts the HTTPS proxy,
+Flask as UID 1001, and Orca, agents and the browser as UID 1000. Their state
+and the host queue use separate mounts and filesystem permissions. The
+dashboard account owns the private pairing-result group and request directory.
 Browser pairing uses Orca's fixed native CLI command, never direct profile reads.
 
 The standard image ships the official OpenCode 2 binary as `opencode2`.
@@ -68,7 +72,7 @@ unchanged. Orca's original frontend performs pairing; no second protocol exists.
 
 Credentials never enter public status or ordinary job results. A separate
 root-owned `control/pairings` directory uses mode 02710 and mapped manager group
-101000, with files mode 0640. Only the requesting authenticated browser session
+101001, with files mode 0640. Only the requesting authenticated browser session
 can retrieve its result through the manager. Responses are uncached; credential
 JSON omits referrers and HTML preserves only same-origin referrers for strict
 CSRF checks. Native offers travel only in fragments, never HTTP referrers.
@@ -90,7 +94,7 @@ files explicitly receive their intended readable mode despite the worker's
 private default umask. Native probes use absolute administrative executable paths.
 
 For first administrator setup, the worker copies only the one-time code to the
-assigned manager container's Proxmox Summary Notes. It validates the mapped-owner
+assigned application's Proxmox Summary Notes. It validates the mapped-owner
 private file without following guest-controlled links and bounds its size/format.
 A locked compare-and-set preserves unrelated Notes and the exact ownership marker;
 the code travels through a local stdin pipe, never argv, logs or status snapshots.
@@ -120,9 +124,9 @@ return process. An unknown installed provider version blocks a change; startup
 success requires native RPC and both selected version numbers.
 
 A version change builds and creates the stopped replacement first. It checks
-live terminal activity again, gracefully stops the old runtime, copies the
+live terminal activity again, gracefully stops the old application container, copies the
 consistent HOME/workspace group, records the return point, then starts the new
-container. It never restores data automatically. The user tries the release in
+container with the existing dashboard state. It never restores data automatically. The user tries the release in
 Orca. A failed start retains the previous container and data backup. Failed
 backup attempts bring the unchanged old runtime back up.
 

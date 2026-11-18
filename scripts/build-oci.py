@@ -56,7 +56,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", required=True)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--manager", action="store_true")
+    parser.add_argument("--manager", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--opencode-version", default=DEFAULT_VERSION)
     parser.add_argument("--ca-file", type=Path)
     args = parser.parse_args()
@@ -111,14 +111,9 @@ def main():
     runtime_archive = args.output / f"orca-runtime-{version}.oci.tar"
     export(with_tools, runtime_archive)
     archives["runtime"] = runtime_archive
-    if args.manager:
-        manager = "orca-server-manager/manager-oci:0.2.0"
-        command(common + ["-f", "container/manager-oci.Dockerfile", "-t", manager, "."])
-        manager_archive = args.output / "orca-manager-0.2.0.oci.tar"
-        export(manager, manager_archive)
-        archives["manager"] = manager_archive
     record = {
         "schema": 1,
+        "layout": "single-container",
         "orca_version": version,
         "upstream_sha256": release["sha256"],
         "upstream_web_sha256": release["web_sha256"],

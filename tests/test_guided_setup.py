@@ -163,6 +163,11 @@ def test_host_forwards_only_human_code_and_resumes_native_signin(tmp_path, monke
             self.control = tmp_path / "control"
             self.results = []
 
+        manager_gid = 101000
+
+        def own_manager(self):
+            self.own_container(self.cfg["manager_id"], role="manager")
+
         def own_container(self, vmid, role="runtime"):
             assert (vmid, role) in {(201, "runtime"), (202, "manager")}
 
@@ -173,7 +178,7 @@ def test_host_forwards_only_human_code_and_resumes_native_signin(tmp_path, monke
         def result(self, job, state, message):
             self.results.append((state, message))
 
-    monkeypatch.setattr(forge, "publish_pairing", lambda _, value: private.append(value))
+    monkeypatch.setattr(forge, "publish_pairing", lambda _, value, **kwargs: private.append(value))
     worker = ScopedWorker()
     job = {
         "schema": 1,
