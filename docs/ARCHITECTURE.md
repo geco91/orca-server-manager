@@ -152,9 +152,10 @@ Readiness uses native RPC, not an open port, PID, HTML response or exit code alo
   updater for this standalone deployment.
 - The official server-only package omits the paired browser client. This image
   also verifies the matching official desktop `.deb` checksum and extracts only
-  files in its native `.orca-web-client-files.json` manifest. It runs no Electron
-  or desktop process. Orca's unmodified server discovers and serves that original
-  browser bundle from `out/web`; no Orca UI or pairing workflow is reimplemented.
+  the original WebUI using its native `.orca-web-client-files.json` manifest.
+  The runtime also starts the official desktop on a private display for Orca
+  Mobile. It pairs to the workspace server over loopback. The manager proxies
+  the mobile WebSocket and obtains native pairing offers through the scoped worker.
   [Native bundle lookup](https://github.com/stablyai/orca/blob/v1.4.261/src/shared/web-client/bundled-web-client-root.ts).
 - [Native account commands](https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/account.ts)
   and [pairing](https://github.com/stablyai/orca/blob/v1.4.261/src/cli/specs/pair.ts)

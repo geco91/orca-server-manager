@@ -7,7 +7,7 @@ guides, technical observations and an explicit version-change/rollback process.
 **Native pilot verified, 17 November 2026:** the English HTTPS manager and Orca
 runtime run in unprivileged Proxmox OCI containers. Real version changes and both
 rollback modes passed with disposable data. Private builds run in a dedicated
-Debian VM. The manager includes the virtual browser used by Orca Mobile. The phone pairs by scanning one native QR code. Provider logins, Mac pairing and external tunnel access use their native setup. See the [validation record](docs/VALIDATION.md).
+Debian VM. The runtime includes the virtual browser used by Orca Mobile. The phone pairs by scanning one native QR code. Provider logins, Mac pairing and external tunnel access use their native setup. See the [validation record](docs/VALIDATION.md).
 
 ## Native Proxmox OCI pilot
 
@@ -22,11 +22,11 @@ It requires explicit unused IDs, an assigned builder, existing storage/network
 and an empty dedicated data filesystem. It never formats a disk or replaces an
 existing guest. No public image registry or user GitHub pairing is needed.
 
-The manager container includes Orca Desktop on a private virtual display. The Proxmox worker
-pairs it to the assigned workspace server automatically. In **Overview → Browser service →
-Set up Orca Mobile**, scan the QR code with Orca Mobile on the LAN or VPN. The default private-IP pilot uses Orca’s encrypted LAN pairing. With a custom HTTPS origin, the phone uses its trusted certificate. Existing phones paired directly to the runtime can add
-the manager connection once to use previews. The browser profile and paired devices persist
-in the manager data volume.
+The Orca runtime container starts Orca Desktop on a private virtual display. Its
+browser process pairs with the Orca server over loopback. The manager shows the
+service status and issues a native Orca Mobile QR code. Open **Overview → Browser
+service → Set up Orca Mobile** on the LAN or VPN. The browser profile and paired
+devices persist with the runtime HOME.
 
 For first-time administrator setup, copy the code from the **manager container →
 Summary → Notes** in Proxmox and enter it on the English HTTPS setup page. The

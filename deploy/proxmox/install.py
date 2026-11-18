@@ -133,6 +133,7 @@ def apply(cfg, source_config, archive_dir, resume=False):
         ROOT / "deploy/proxmox/notes.py",
         ROOT / "deploy/proxmox/pairing.py",
         ROOT / "manager/control.py",
+        ROOT / "manager/browser.py",
         ROOT / "manager/pairing.py",
         ROOT / "manager/releases.py",
         ROOT / "manager/opencode_releases.py",

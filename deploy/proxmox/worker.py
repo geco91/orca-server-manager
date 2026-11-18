@@ -22,7 +22,13 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from deploy.proxmox import forge
 from deploy.proxmox.notes import SetupNotesError, sync_setup_notes
-from deploy.proxmox.pairing import prune_pairings, publish_pairing, read_manager_origin
+from deploy.proxmox.pairing import (
+    prune_pairings,
+    publish_pairing,
+    read_manager_origin,
+    read_manager_settings,
+)
+from manager.browser import observation, validate_offer
 from manager.control import JOB_ID, ControlError, atomic_document, read_document, utc_now
 from manager.forge import ACTIONS as FORGE_ACTIONS
 from manager.opencode_releases import LEGACY_VERSION as LEGACY_OPENCODE_VERSION
@@ -109,6 +115,7 @@ def validate_request(document, name):
         "update_opencode",
         "rollback",
         "pair_web",
+        "pair_mobile",
     }:
         raise DeploymentError("Unsupported operation.")
     if document["action"] == "update_opencode":
@@ -269,6 +276,7 @@ class Worker:
             "observed_at": utc_now(),
             "runtime": observed.get("runtime", {}),
             "integrations": observed.get("integrations", {}),
+            "browser": observed.get("browser", {}),
             "deployment": {
                 "runtime_id": self.cfg["runtime_id"],
                 "version": self.cfg["version"],
@@ -668,6 +676,8 @@ class Worker:
                 forge.start(self, job)
             elif job["action"] == "pair_web":
                 self.pair_web(job)
+            elif job["action"] == "pair_mobile":
+                self.pair_mobile(job)
             elif job["action"] in {"update", "update_opencode"}:
                 self.update(job)
             else:
@@ -681,61 +691,6 @@ class Worker:
             self.result(job, "failed", str(error))
         finally:
             self.publish_status()
-
-    def enroll_browser(self):
-        # The runtime and manager are both fenced by their administrator-owned CT markers.
-        stamp = self.private / "browser-enrollment-attempt"
-        if stamp.exists() and time.time() - stamp.stat().st_mtime < 60:
-            return
-        self.own_container(self.cfg["manager_id"], "manager")
-        manager = [
-            "pct",
-            "exec",
-            str(self.cfg["manager_id"]),
-            "--",
-            "runuser",
-            "-u",
-            "orca-browser",
-            "--",
-            "/usr/local/bin/python3",
-            "/app/browser-service.py",
-        ]
-        stamp.touch(mode=0o600)
-        if self.run([*manager, "enrollment-needed"], timeout=10).strip() != "needed":
-            return
-        self.own_container(self.cfg["runtime_id"])
-        endpoint = "ws://127.0.0.1:6769"
-        raw = self.run(
-            [
-                "pct",
-                "exec",
-                str(self.cfg["runtime_id"]),
-                "--",
-                "runuser",
-                "-u",
-                "orca",
-                "--",
-                "/usr/local/bin/orca",
-                "pair",
-                "--address",
-                endpoint,
-                "--json",
-            ],
-            timeout=20,
-        )
-        offer = json.loads(raw)["result"]
-        if (
-            isinstance(offer, dict)
-            and offer.get("available") is True
-            and offer.get("scope") == "runtime"
-            and offer.get("endpoint") == endpoint
-            and isinstance(offer.get("pairingUrl"), str)
-        ):
-            self.run(
-                [*manager, "enroll"],
-                input_data=json.dumps({"pairingUrl": offer["pairingUrl"]}),
-                timeout=30,
-            )
 
     def tick(self):
         try:
@@ -778,28 +733,62 @@ class Worker:
                 pass
             destination.rename(destination.with_suffix(".done"))
 
-        try:
-            self.enroll_browser()
-        except (
-            OSError,
-            DeploymentError,
-            ValueError,
-            KeyError,
-            TypeError,
-            subprocess.SubprocessError,
-        ):
-            # Older managers have no browser service. Enrollment is retried independently.
-            pass
-
-    def pair_web(self, job):
+    def check_pairing_age(self, job):
         try:
             created = datetime.fromisoformat(job["created_at"])
         except (ValueError, TypeError):
             raise DeploymentError("Invalid pairing request timestamp.") from None
         if created.tzinfo is None or not -5 <= time.time() - created.timestamp() <= PAIRING_TTL:
-            raise DeploymentError(
-                "This pairing request expired. Open the WebUI again to prepare another link."
-            )
+            raise DeploymentError("The pairing request expired. Prepare another link.")
+
+    def pair_mobile(self, job):
+        self.check_pairing_age(job)
+        observed = self.probe()
+        if observation(observed.get("browser"))["state"] != "ready":
+            raise DeploymentError("The runtime browser service is not ready yet.")
+        self.own_container(self.cfg["manager_id"], role="manager")
+        settings = read_manager_settings(self.data)
+        endpoint = settings.get("mobile_endpoint")
+        if endpoint not in {
+            settings["origin"].replace("https://", "wss://", 1) + "/orca-mobile",
+            settings["origin"].replace("https://", "ws://", 1) + ":6768",
+        }:
+            raise DeploymentError("The manager mobile endpoint is unavailable.")
+        raw = self.run(
+            [
+                "pct",
+                "exec",
+                str(self.cfg["runtime_id"]),
+                "--",
+                "/usr/sbin/runuser",
+                "-u",
+                "orca",
+                "--",
+                "/usr/bin/python3",
+                "/opt/osm/browser-service.py",
+                "offer",
+            ],
+            input_data=endpoint + "\n",
+            timeout=20,
+        )
+        try:
+            value = json.loads(raw)
+            payload = {
+                "schema": 1,
+                "id": job["id"],
+                "generation": self.cfg["generation"],
+                "endpoint": endpoint,
+                "expires_at": time.time() + PAIRING_TTL,
+                "pairing_url": value["pairing_url"],
+            }
+            validate_offer(payload, endpoint, job["id"], self.cfg["generation"])
+        except (TypeError, KeyError, ValueError):
+            raise DeploymentError("Orca did not return a mobile pairing code.") from None
+        publish_pairing(self.control, payload)
+        self.result(job, "completed", "The private native mobile pairing code is ready.")
+
+    def pair_web(self, job):
+        self.check_pairing_age(job)
         self.own_container(self.cfg["manager_id"], role="manager")
         observed = self.probe().get("runtime", {})
         if observed.get("reachable") is not True or not observed.get("web_url"):

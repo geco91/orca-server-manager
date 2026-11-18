@@ -5,9 +5,18 @@
 http://:80 {
     redir {$OSM_ORIGIN}{uri} 308
 }
-http://127.0.0.1:6769 {
-    bind 127.0.0.1
-    reverse_proxy {$OSM_ORCA_UPSTREAM:127.0.0.1:9}
+http://:6768 {
+    @lan {
+        path /
+        header Upgrade websocket
+    }
+    handle @lan {
+        reverse_proxy {$OSM_ORCA_MOBILE_UPSTREAM:127.0.0.1:9} {
+            header_up -Cookie
+            header_down -Set-Cookie
+        }
+    }
+    respond 404
 }
 https://:443 {
     tls /data/tls/server.crt /data/tls/server.key
@@ -16,7 +25,7 @@ https://:443 {
         header Upgrade websocket
     }
     handle @mobile {
-        reverse_proxy 127.0.0.1:6768 {
+        reverse_proxy {$OSM_ORCA_MOBILE_UPSTREAM:127.0.0.1:9} {
             header_up -Cookie
             header_down -Set-Cookie
         }

@@ -11,12 +11,14 @@
 {% if qr %}
 <div class="mobile-qr" role="img" aria-label="Pair this phone with Orca">{{ qr }}</div>
 <details><summary>Copy the pairing link</summary><label for="mobile-link">Private pairing link</label><input id="mobile-link" value="{{ link }}" readonly></details>
+{% elif pending %}
+<p class="busy-text" role="status">Preparing QR code…</p>
 {% else %}
 <form id="mobile-form" method="post" action="{{ url_for('pair_mobile') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button{% if status.browser.state != 'ready' %} disabled{% endif %}>Show pairing QR code</button></form>
 {% endif %}
 </section>
 <section class="panel"><div class="panel-top"><h2>Browser service</h2><span class="pill {{ 'ready' if status.browser.state == 'ready' else 'unknown' }}">{{ status.browser.label }}</span></div><p>{{ status.browser.detail }}</p>
-<p>The browser runs in the manager container. Workspace files, terminals and agents run on the paired Orca server.</p><a href="{{ url_for('connection', name='mobile') }}">Refresh service status</a></section>
+<p>The browser, workspace files, terminals and agents run in the Orca runtime container.</p><a href="{{ url_for('connection', name='mobile') }}">Refresh service status</a></section>
 </div>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='mobile-pairing.js') }}" defer></script>{% endblock %}
