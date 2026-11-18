@@ -69,7 +69,7 @@ def observation(directory=SOCKET_DIR, now=None):
     try:
         value = json.loads((Path(directory) / "status.json").read_bytes())
         if not isinstance(value, dict):
-            raise ValueError
+            raise TypeError
         transport = "lan" if value.get("transport") == "lan" else "https"
         age = (time.time() if now is None else now) - value["observed"]
         state = value["state"] if 0 <= age < 75 and value["state"] in STATES else "offline"
