@@ -68,6 +68,10 @@ def main():
     except BlockingIOError:
         parser.error("Another OCI build is already using this output directory.")
     release = resolve_release(args.version)
+    if args.manager and not release["web_sha256"]:
+        parser.error(
+            "This release needs an official desktop checksum to build the browser service."
+        )
     opencode = resolve_opencode(args.opencode_version)
     common = ["docker", "build"]
     if args.ca_file:
@@ -113,7 +117,20 @@ def main():
     archives["runtime"] = runtime_archive
     if args.manager:
         manager = "orca-server-manager/manager-oci:0.2.0"
-        command(common + ["-f", "container/manager-oci.Dockerfile", "-t", manager, "."])
+        command(
+            common
+            + [
+                "-f",
+                "container/manager-oci.Dockerfile",
+                "-t",
+                manager,
+                "--build-arg",
+                f"ORCA_VERSION={version}",
+                "--build-arg",
+                f"ORCA_WEB_SHA256={release['web_sha256']}",
+                ".",
+            ]
+        )
         manager_archive = args.output / "orca-manager-0.2.0.oci.tar"
         export(manager, manager_archive)
         archives["manager"] = manager_archive

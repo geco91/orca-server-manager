@@ -6,6 +6,9 @@
 <section class="panel"><span class="pill {{ 'ready' if status.runtime.state == 'reachable' else status.runtime.state }}">{{ status.runtime.label }}</span>
 <div class="metric-row"><div class="metric"><span>Orca</span><strong>{{ status.runtime.version }}</strong></div><div class="metric"><span>OpenCode</span><strong>{{ status.runtime.opencode_version }}</strong></div><div class="metric"><span>Terminal sessions</span><strong>{{ status.runtime.active_terminals if status.runtime.active_terminals is not none else 'Unknown' }}</strong></div><div class="metric"><span>Manager storage available</span><strong>{{ free_gb }} GB</strong></div></div>
 <div class="button-row"><form method="post" action="{{ url_for('refresh') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="quiet"{% if not status.controller.available or active_operation %} disabled{% endif %}>Refresh status</button></form><a href="{{ url_for('updates') }}">Versions &amp; updates</a></div></section>
+<div class="section-heading"><h2>Browser service</h2></div>
+<section class="panel"><div class="panel-top"><h3>Mobile workspace previews</h3><span class="pill {{ 'ready' if status.browser.state == 'ready' else 'unknown' }}">{{ status.browser.label }}</span></div>
+<p>{{ status.browser.detail }}</p><a href="{{ url_for('connection', name='mobile') }}">Set up Orca Mobile →</a></section>
 <div class="section-heading"><h2>Connections</h2><a href="{{ url_for('connections') }}">All guides →</a></div>
 {% include '_connections.html' %}
 {% endblock %}

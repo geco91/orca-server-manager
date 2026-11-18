@@ -190,3 +190,6 @@ footer span { display: block; margin-top: 5px; }
 #instance-links { margin: 12px 0 20px; }
 .native-fallback summary { cursor: pointer; }
 @media (max-width: 580px) { .setup-nav-label { display: none; } .forge-row { padding: 14px; } }
+
+.mobile-qr { width: min(100%, 20rem); }
+.mobile-qr svg { display: block; width: 100%; height: auto; }

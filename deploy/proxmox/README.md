@@ -119,3 +119,20 @@ These are not established by the local MCP health check or by the lifecycle
 trial. Never start a retained CT alongside the active runtime: they share data
 and the runtime MAC. Keep actual host addresses and credentials in the private
 operator handoff, outside this repository.
+
+
+### Mobile browser service
+
+The manager guest uses two vCPUs and 2 GiB RAM. Its image includes the checksum-verified
+Orca Desktop release, Xvfb and Chromium’s sandbox helper. The display and the persistent
+profile at `/data/browser` run under a separate service account. New installs start the
+service automatically. The worker exchanges a native runtime pairing over the manager’s
+loopback proxy on port 6769. The saved grant follows the runtime through the existing
+proxy target used for updates and rollbacks.
+
+**Overview → Browser service** shows the most recent native streaming, mobile relay and
+workspace authentication checks. **Set up Orca Mobile → Show pairing QR code** issues a
+mobile-scoped link. A manager using its generated certificate at its own private IPv4 address advertises its native LAN port 6768. Other origins use `wss://<manager>/orca-mobile`. Orca authenticates and encrypts
+the WebSocket session. For the HTTPS endpoint, configure a certificate trusted by the phone and use its matching
+hostname or IP in the manager origin. Back up the browser profile with the manager data
+to preserve the saved phone and runtime pairings.

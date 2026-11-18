@@ -553,3 +553,42 @@ def test_failed_managed_probe_never_reports_the_legacy_binary_as_current(deploym
     pve.software[201] = ("1.4.261", None)
     assert worker.probe()["runtime"]["opencode_version"] is None
     assert not any(command[-1] == "--version" for command in pve.commands)
+
+
+@pytest.mark.parametrize(
+    "endpoint, transfers", [("ws://127.0.0.1:6769", 1), ("ws://192.0.2.1:6768", 0)]
+)
+def test_browser_enrollment_is_scoped_private_and_retried_with_backoff(
+    deployment, monkeypatch, endpoint, transfers
+):
+    worker, simulator = deployment
+    sent = []
+    calls = []
+
+    def native(args, **kwargs):
+        calls.append(args)
+        if args[-1] == "enrollment-needed":
+            return "needed"
+        if args[-1] == "enroll":
+            sent.append(json.loads(kwargs["input_data"]))
+            return ""
+        if "pair" in args:
+            return json.dumps(
+                {
+                    "result": {
+                        "available": True,
+                        "scope": "runtime",
+                        "endpoint": endpoint,
+                        "pairingUrl": "private-fixture",
+                    }
+                }
+            )
+        return simulator(args, **kwargs)
+
+    monkeypatch.setattr(worker, "run", native)
+    worker.enroll_browser()
+    worker.enroll_browser()
+    assert len(sent) == transfers
+    assert sum("pair" in a for a in calls) == 1
+    assert not any("private-fixture" in str(a) for a in calls)
+    assert [a[2] for a in calls if a[:2] == ["pct", "config"]] == ["202", "201"]
