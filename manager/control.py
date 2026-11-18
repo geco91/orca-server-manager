@@ -117,6 +117,7 @@ class Controller:
             "update_opencode",
             "rollback",
             "pair_web",
+            "pair_mobile",
         }:
             raise ControlError("Unsupported deployment action.")
         if action == "update_opencode":

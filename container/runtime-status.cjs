@@ -113,7 +113,12 @@ async function publish() {
   const agentNames={opencode:'OpenCode',opencode2:'OpenCode 2',codex:'Codex',claude:'Claude',blank:'Blank terminal'};
   providers.checks.push({name:'Host default agent',value:Object.hasOwn(agentNames,hostDefault)?agentNames[hostDefault]:typeof hostDefault==='string'?'Another native agent selected':'Not selected or not observable'},
     {name:'OpenCode provider access',value:'Not tested by this status check'});
-  console.log(JSON.stringify({schema:1,runtime:{reachable,version,opencode_version:opencodeVersion,git_setup:gitSetup,active_terminals:activeTerminals,web_url:webUrl},
+  let browser;
+  try {
+    const file = `${os.homedir()}/.local/share/osm-browser/status.json`;
+    if (fs.statSync(file).size <= 4096) browser = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {}
+  console.log(JSON.stringify({schema:1,browser,runtime:{reachable,version,opencode_version:opencodeVersion,git_setup:gitSetup,active_terminals:activeTerminals,web_url:webUrl},
     integrations:{providers,github,gitlab,forgejo,desktop:clients,mobile:clients,mcp:bridge,tunnel}}));
 }
 publish().catch(()=>{console.error('The native status observation could not complete.');process.exitCode=1;});

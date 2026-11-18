@@ -32,7 +32,7 @@ def private_channel(control):
     return path
 
 
-def read_manager_origin(data):
+def read_manager_settings(data):
     parent = os.open(Path(data) / "manager", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         info = os.fstat(parent)
@@ -51,13 +51,19 @@ def read_manager_origin(data):
                 or info.st_nlink != 1
             ):
                 raise PairingError("The manager origin has unexpected ownership or permissions.")
-            return manager_origin(json.loads(stream.read(4097))["origin"])
-    except (OSError, ValueError, KeyError):
+            document = json.loads(stream.read(4097))
+            document["origin"] = manager_origin(document["origin"])
+            return document
+    except (OSError, ValueError, KeyError, TypeError):
         raise PairingError(
             "The manager's HTTPS origin is not ready. Refresh and try again."
         ) from None
     finally:
         os.close(parent)
+
+
+def read_manager_origin(data):
+    return read_manager_settings(data)["origin"]
 
 
 def publish_pairing(control, value):

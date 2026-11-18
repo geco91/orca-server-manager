@@ -71,7 +71,7 @@ def create_app(test_config=None):
         ORCA_WEB_URL=os.environ.get("ORCA_WEB_URL", ""),
         ORIGIN=os.environ.get("OSM_ORIGIN", "https://localhost"),
         CONTROL_DIR=os.environ.get("OSM_CONTROL_DIR"),
-        BROWSER_DIR=browser.SOCKET_DIR,
+        PHONE_ENDPOINT=os.environ.get("OSM_PHONE_ENDPOINT", ""),
         ARCHITECTURE=os.environ.get("OSM_ARCHITECTURE", "amd64"),
         SESSION_COOKIE_NAME="__Host-osm",
         SESSION_COOKIE_SECURE=True,
@@ -98,6 +98,8 @@ def create_app(test_config=None):
           CREATE TABLE IF NOT EXISTS git_attempts (
             id TEXT PRIMARY KEY, provider TEXT NOT NULL, owner TEXT NOT NULL, created REAL NOT NULL);
           CREATE TABLE IF NOT EXISTS web_pairings (
+            id TEXT PRIMARY KEY, owner TEXT NOT NULL, created REAL NOT NULL);
+          CREATE TABLE IF NOT EXISTS mobile_pairings (
             id TEXT PRIMARY KEY, owner TEXT NOT NULL, created REAL NOT NULL);
           CREATE TABLE IF NOT EXISTS attempts (id INTEGER PRIMARY KEY CHECK(id=1),
             failures INTEGER NOT NULL, until REAL NOT NULL);
@@ -144,7 +146,12 @@ def create_app(test_config=None):
         response.headers["Referrer-Policy"] = "same-origin"
         if request.endpoint in {"web_pairing", "web_pairing_job", "web_pairing_data"}:
             response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-        if request.endpoint in {"web_pairing_data", "git_progress", "pair_mobile"}:
+        if request.endpoint in {
+            "web_pairing_data",
+            "git_progress",
+            "pair_mobile",
+            "mobile_pairing_job",
+        }:
             response.headers["Referrer-Policy"] = "no-referrer"
         if request.is_secure:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
@@ -275,7 +282,10 @@ def create_app(test_config=None):
         deployment = snapshot.get("deployment", {}) if connected else {}
         return {
             "manager": "ok",
-            "browser": browser.observation(app.config["BROWSER_DIR"]),
+            "browser": browser.observation(
+                snapshot.get("browser") if connected else None,
+                endpoint=app.config["PHONE_ENDPOINT"],
+            ),
             "controller": snapshot["controller"],
             "runtime": runtime,
             "integrations": integrations,
@@ -326,12 +336,12 @@ def create_app(test_config=None):
 
     register_onboarding(app, connect, controller, current_status, active_operation, overview)
 
-    def owned_pairing(job_id):
+    def owned_pairing(job_id, table="web_pairings"):
         if not job_id or not session.get("pairing_owner"):
             abort(404)
         with connect() as db:
             row = db.execute(
-                "SELECT id,created FROM web_pairings WHERE id=? AND owner=?",
+                f"SELECT id,created FROM {table} WHERE id=? AND owner=?",
                 (job_id, session["pairing_owner"]),
             ).fetchone()
         if not row or time.time() - row[1] > 900:
@@ -367,27 +377,29 @@ def create_app(test_config=None):
                 error="Finish the running deployment operation before connecting the WebUI.",
                 code=409,
             )
+        try:
+            job_id = request_pairing("pair_web", "web_pairings")
+        except (ControlError, OSError) as error:
+            return pairing_page(error=str(error), code=503)
+        session["web_pairing_job"] = job_id
+        return redirect(
+            url_for("web_pairing_job", job_id=job_id, open=request.form.get("open", "0")), code=303
+        )
+
+    def request_pairing(action, table):
         owner = session.setdefault("pairing_owner", secrets.token_hex(32))
-        automatic = request.form.get("open") == "1"
         with connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            db.execute(f"DELETE FROM {table} WHERE created<=?", (time.time() - 900,))
             recent = db.execute(
-                "SELECT id FROM web_pairings WHERE owner=? AND created>? ORDER BY created DESC LIMIT 1",
+                f"SELECT id FROM {table} WHERE owner=? AND created>? ORDER BY created DESC LIMIT 1",
                 (owner, time.time() - PAIRING_TTL),
             ).fetchone()
             if recent and controller.result(recent[0]).get("state") in {"queued", "running"}:
-                job_id = recent[0]
-            else:
-                try:
-                    job = controller.submit("pair_web")
-                except (ControlError, OSError) as error:
-                    return pairing_page(error=str(error), code=503)
-                job_id = job["id"]
-                db.execute("INSERT INTO web_pairings VALUES (?,?,?)", (job_id, owner, time.time()))
-            session["web_pairing_job"] = job_id
-        return redirect(
-            url_for("web_pairing_job", job_id=job_id, open="1" if automatic else "0"), code=303
-        )
+                return recent[0]
+            job = controller.submit(action)
+            db.execute(f"INSERT INTO {table} VALUES (?,?,?)", (job["id"], owner, time.time()))
+            return job["id"]
 
     @app.get("/web-ui/<job_id>")
     @login_required
@@ -457,16 +469,44 @@ def create_app(test_config=None):
     @login_required
     def pair_mobile():
         snapshot = current_status()
-        if snapshot["browser"]["state"] == "ready":
+        if snapshot["browser"]["state"] == "ready" and not active_operation():
             try:
-                link, qr = browser.phone_offer(app.config["BROWSER_DIR"])
-                return render_template("mobile.html", status=snapshot, link=link, qr=qr)
-            except (OSError, ValueError, subprocess.SubprocessError):
+                job_id = request_pairing("pair_mobile", "mobile_pairings")
+                return redirect(url_for("mobile_pairing_job", job_id=job_id), code=303)
+            except (ControlError, OSError):
                 pass
         return render_template(
             "mobile.html",
             status=snapshot,
             error="Orca could not prepare a code. Refresh the service status and try again.",
+        ), 503
+
+    @app.get("/connections/mobile/<job_id>")
+    @login_required
+    def mobile_pairing_job(job_id):
+        row = owned_pairing(job_id, "mobile_pairings")
+        snapshot = current_status()
+        state = controller.result(job_id).get("state")
+        if state in {"queued", "running"} and time.time() - row[1] <= PAIRING_TTL:
+            return render_template("mobile.html", status=snapshot, pending=True, refresh_seconds=2)
+        if state == "completed" and snapshot["controller"]["available"]:
+            try:
+                value = read_document(controller.directory / "pairings" / (job_id + ".json"))
+                link = browser.validate_offer(
+                    value,
+                    app.config["PHONE_ENDPOINT"],
+                    job_id,
+                    snapshot["deployment"]["generation"],
+                )
+                return render_template(
+                    "mobile.html", status=snapshot, link=link, qr=browser.pairing_qr(link)
+                )
+            except (ControlError, OSError, PairingError, ValueError, subprocess.SubprocessError):
+                pass
+        return render_template(
+            "mobile.html",
+            status=snapshot,
+            error="The mobile pairing code is unavailable. Prepare another code.",
         ), 503
 
     def cached_catalog(prefix, fetcher, page):

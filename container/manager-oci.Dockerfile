@@ -11,7 +11,7 @@ RUN --mount=type=secret,id=proxy_ca \
     uv sync --frozen --no-dev --no-install-project
 COPY manager ./manager
 RUN chmod -R a+rX /app/manager
-COPY --chmod=0644 container/manager-service.py container/browser-service.py container/browser-native.cjs /app/
+COPY --chmod=0644 container/manager-service.py /app/
 COPY --chmod=0644 container/manager.Caddyfile /app/manager.Caddyfile
 
 FROM python:3.12-slim-bookworm
@@ -20,21 +20,10 @@ COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
 RUN --mount=type=secret,id=proxy_ca,mode=0444 \
     sed -i 's|http://deb.debian.org/|https://deb.debian.org/|g' /etc/apt/sources.list.d/debian.sources \
     && if [ -f /run/secrets/proxy_ca ]; then echo 'Acquire::https::CaInfo "/run/secrets/proxy_ca";' > /etc/apt/apt.conf.d/99build-ca; fi \
-    && apt-get update && apt-get install -y --no-install-recommends openssl tini xvfb xauth dbus-daemon \
-    libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 libatspi2.0-0 libuuid1 libsecret-1-0 \
-    libasound2 libgbm1 libdrm2 fonts-liberation git xdg-utils qrencode \
+    && apt-get update && apt-get install -y --no-install-recommends openssl tini qrencode \
     && rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/99build-ca \
     && useradd --uid 1000 --create-home manager \
-    && useradd --uid 1001 --user-group --no-create-home --home-dir /data/browser --shell /usr/sbin/nologin orca-browser \
     && mkdir -p /etc/caddy && ln -s /app/manager.Caddyfile /etc/caddy/Caddyfile
-ARG ORCA_VERSION=1.4.261
-ARG ORCA_ARCH=x64
-ARG ORCA_WEB_SHA256=86755b4c6e7e25d2ef4aadd5d2508bf52520d15f8ef45fa99e74cec7431e5c1c
-RUN --mount=type=secret,id=proxy_ca --mount=type=bind,source=scripts/fetch-web.py,target=/build/fetch-web.py \
-    if [ -f /run/secrets/proxy_ca ]; then export SSL_CERT_FILE=/run/secrets/proxy_ca; fi; \
-    python /build/fetch-web.py "$ORCA_VERSION" "$ORCA_ARCH" "$ORCA_WEB_SHA256" /tmp/orca.deb --package \
-    && dpkg-deb --fsys-tarfile /tmp/orca.deb | tar -x -C / ./opt/Orca \
-    && rm /tmp/orca.deb && chmod 4755 /opt/Orca/chrome-sandbox
 COPY --from=app /app /app
 ENV OSM_STATE_DIR=/data/manager OSM_CONTROL_DIR=/control \
     PATH=/app/.venv/bin:$PATH PYTHONDONTWRITEBYTECODE=1

@@ -9,7 +9,7 @@ const { parsePairingCode } = require(path.join(out, 'shared/remote-runtime/pairi
 const { exchangeCliPairingCode } = require(path.join(out, 'cli/runtime/pairing/environment-pairing-exchange.js'));
 const store = require(path.join(out, 'shared/remote-runtime/host-store/runtime-environment-store.js'));
 const profile = process.env.ORCA_USER_DATA_PATH;
-const internal = 'ws://127.0.0.1:6769';
+const internal = 'ws://127.0.0.1:6768';
 const name = 'Workspace server';
 const local = new RuntimeClient(profile, 4000, null, null);
 
@@ -21,7 +21,10 @@ async function run() {
     const offer = parsePairingCode(pairingUrl);
     if (offer?.scope !== 'runtime' || offer.endpoint !== internal) throw new Error();
     const pairingCode = await exchangeCliPairingCode(pairingUrl);
-    const env = await store.addEnvironmentFromPairingCode(profile, { name, pairingCode });
+    const identity = process.argv[3];
+    const env = identity
+      ? await store.updateEnvironmentFromPairingCode(profile, identity, { pairingCode })
+      : await store.addEnvironmentFromPairingCode(profile, { name, pairingCode });
     const remote = new RuntimeClient(profile, 6000, null, env.id);
     const status = await remote.call('status.get');
     if (!status.result.runtimeId) throw new Error();
@@ -29,6 +32,9 @@ async function run() {
   }
   if (action === 'probe') {
     const status = (await local.call('status.get')).result;
+    const metadata = JSON.parse(fs.readFileSync(path.join(profile, 'orca-runtime.json'), 'utf8'));
+    const bound = metadata.transports?.find(transport => transport.kind === 'websocket');
+    if (!bound || new URL(bound.endpoint).port !== '6770') return { state: 'display' };
     const caps = status.capabilities || [];
     if (!caps.includes('browser.screencast.v1') || !caps.includes('mobile.desktop-relay.v1')) {
       return { state: 'display' };
@@ -43,7 +49,7 @@ async function run() {
     }
   }
   if (action === 'offer') {
-    const address = process.env.OSM_PHONE_ENDPOINT;
+    const address = process.argv[3];
     if (!address) throw new Error();
     const { result: offer } = await local.call('pairing.createOffer', {
       scope: 'mobile', address, relay: false,

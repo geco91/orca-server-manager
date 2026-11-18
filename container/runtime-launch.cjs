@@ -39,6 +39,9 @@ function shutdown(code = 0) {
 process.on('SIGTERM', () => shutdown());
 process.on('SIGINT', () => shutdown());
 start('/usr/local/bin/orca', ['serve', '--bind', '0.0.0.0', '--port', '6768', '--no-pairing'], process.env);
+if (fs.existsSync('/opt/Orca/orca-ide')) {
+  start('/usr/bin/python3', ['/opt/osm/browser-service.py', 'supervise'], process.env, true);
+}
 if (fs.existsSync('/usr/local/bin/opencode')) {
   start(process.execPath, ['/opt/osm/opencode-default.cjs'], process.env, true, true);
 }

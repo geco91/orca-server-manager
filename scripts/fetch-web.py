@@ -116,15 +116,26 @@ def download_desktop(version, architecture, checksum, package):
         raise ValueError("Official desktop checksum mismatch")
 
 
-def install(version, architecture, checksum, destination):
-    with tempfile.TemporaryDirectory() as temporary:
-        package = Path(temporary) / "desktop.deb"
-        download_desktop(version, architecture, checksum, package)
-        with package_tar(package) as source:
-            raw, files = browser_manifest(source)
-        with package_tar(package) as source:
-            extract_browser(source, raw, files, destination)
-    print(f"Verified original Orca browser bundle: {len(files)} files, version {version}.")
+def extract_web(package, destination):
+    with package_tar(package) as source:
+        raw, files = browser_manifest(source)
+    with package_tar(package) as source:
+        extract_browser(source, raw, files, destination)
+    return len(files)
+
+
+def install(version, architecture, checksum, destination, package=None):
+    if package is None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = Path(temporary) / "desktop.deb"
+            download_desktop(version, architecture, checksum, package)
+            count = extract_web(package, destination)
+    else:
+        with package.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != checksum:
+                raise ValueError("Official desktop checksum mismatch.")
+        count = extract_web(package, destination)
+    print(f"Verified original Orca browser bundle: {count} files, version {version}.")
 
 
 if __name__ == "__main__":
@@ -134,6 +145,9 @@ if __name__ == "__main__":
     parser.add_argument("sha256")
     parser.add_argument("destination", type=Path)
     parser.add_argument("--package", action="store_true", help="Keep the verified desktop package")
+    parser.add_argument("--from-package", type=Path)
     args = parser.parse_args()
-    operation = download_desktop if args.package else install
-    operation(args.version, args.architecture, args.sha256, args.destination)
+    if args.package:
+        download_desktop(args.version, args.architecture, args.sha256, args.destination)
+    else:
+        install(args.version, args.architecture, args.sha256, args.destination, args.from_package)

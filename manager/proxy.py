@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from manager.browser import DESKTOP_PORT
 from manager.control import ControlError, read_document
 from manager.links import public_web_url
 
@@ -12,6 +13,7 @@ from manager.links import public_web_url
 def proxy_environment(environment, target):
     result = dict(environment, OSM_ORCA_UPSTREAM=target or "127.0.0.1:9")
     host = result["OSM_ORCA_UPSTREAM"].rsplit(":", 1)[0]
+    result["OSM_ORCA_MOBILE_UPSTREAM"] = f"{host}:{DESKTOP_PORT}" if target else "127.0.0.1:9"
     bypass = ",".join(filter(None, [result.get("NO_PROXY"), result.get("no_proxy"), host]))
     result.update(NO_PROXY=bypass, no_proxy=bypass)
     return result

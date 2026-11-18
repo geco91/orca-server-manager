@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Container entrypoint: HTTPS proxy and an unprivileged manager, no host access."""
 
-import ipaddress
 import os
 import signal
 import socket
@@ -9,7 +8,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from manager.browser import SOCKET_DIR, mobile_endpoint
+from manager.browser import mobile_endpoint
 from manager.control import atomic_document
 from manager.pairing import manager_origin
 from manager.proxy import proxy_environment, proxy_target
@@ -28,9 +27,7 @@ try:
         address = sock.getsockname()[0]
 except OSError:
     pass
-ipaddress.ip_address(address)
 origin = manager_origin(os.environ.get("OSM_ORIGIN") or f"https://{address}")
-atomic_document(data / "manager-origin.json", {"origin": origin}, mode=0o644)
 environment = dict(
     os.environ,
     OSM_STATE_DIR=str(state),
@@ -80,6 +77,10 @@ certificate_names = subprocess.check_output(
     text=True,
 )
 phone_endpoint = mobile_endpoint(origin, address, certificate_names)
+atomic_document(
+    data / "manager-origin.json", {"origin": origin, "mobile_endpoint": phone_endpoint}, mode=0o644
+)
+environment["OSM_PHONE_ENDPOINT"] = phone_endpoint
 upstream = proxy_target(os.environ.get("OSM_CONTROL_DIR"), os.environ.get("OSM_ORCA_UPSTREAM", ""))
 
 
@@ -109,16 +110,6 @@ children = [
     ),
     start_proxy(upstream),
 ]
-browser_home = data / "browser"
-browser_home.mkdir(mode=0o700, exist_ok=True)
-os.chown(browser_home, 1001, 1001)
-SOCKET_DIR.mkdir(exist_ok=True)
-# Set the mode while the entrypoint owns the inode. Compose drops CAP_FOWNER.
-os.chown(SOCKET_DIR, 0, 1000)
-os.chmod(SOCKET_DIR, 0o2750)
-os.chown(SOCKET_DIR, 1001, 1000)
-browser = None
-retry_browser = 0
 stopping = False
 
 
@@ -132,19 +123,6 @@ signal.signal(signal.SIGINT, stop)
 try:
     observed_proxy = 0
     while not stopping and all(child.poll() is None for child in children):
-        if (browser is None or browser.poll() is not None) and time.monotonic() >= retry_browser:
-            browser = subprocess.Popen(
-                ["/usr/local/bin/python3", "/app/browser-service.py", "supervise"],
-                user=1001,
-                group=1001,
-                extra_groups=[],
-                env={
-                    "PATH": "/usr/local/bin:/usr/bin:/bin",
-                    "OSM_ORIGIN": origin,
-                    "OSM_PHONE_ENDPOINT": phone_endpoint,
-                },
-            )
-            retry_browser = time.monotonic() + 15
         if time.monotonic() - observed_proxy > 2:
             observed_proxy = time.monotonic()
             candidate = proxy_target(
@@ -158,8 +136,6 @@ try:
                 upstream = candidate
         time.sleep(0.25)
 finally:
-    if browser is not None:
-        children.append(browser)
     for child in children:
         if child.poll() is None:
             child.terminate()

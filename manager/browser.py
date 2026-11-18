@@ -1,18 +1,14 @@
 """Local, authenticated access to the native browser service."""
 
 import ipaddress
-import json
 import re
-import socket
 import subprocess
 import time
-from pathlib import Path
 from urllib.parse import urlsplit
 
-from manager.pairing import manager_origin
+from manager.pairing import PAIRING_TTL, PairingError, manager_origin
 
-SOCKET_DIR = Path("/run/osm-browser")
-INTERNAL_ENDPOINT = "ws://127.0.0.1:6769"
+DESKTOP_PORT = 6770
 PAIR_URL = re.compile(r"orca://pair\?code=[A-Za-z0-9_-]{16,8192}={0,2}")
 STATES = {
     "ready": (
@@ -22,7 +18,7 @@ STATES = {
     "starting": ("Starting", "Orca is starting its private display."),
     "enrollment": (
         "Connecting",
-        "The deployment worker is pairing the browser service with the assigned workspace server.",
+        "Orca is pairing the browser service with the assigned workspace server.",
     ),
     "display": (
         "Display unavailable",
@@ -30,7 +26,7 @@ STATES = {
     ),
     "sandbox": (
         "Browser could not start",
-        "The sandboxed desktop exited during startup. Check the manager container’s browser sandbox and memory.",
+        "The sandboxed desktop exited during startup. Check the runtime container’s browser sandbox and memory.",
     ),
     "disconnected": (
         "Server offline",
@@ -42,7 +38,7 @@ STATES = {
     ),
     "revoked": (
         "Reconnecting",
-        "Orca refused the saved device grant. The worker will renew the internal pairing.",
+        "Orca refused the saved device grant. The browser service will renew the internal pairing.",
     ),
     "offline": ("Unavailable", "The manager has no recent observation from the browser service."),
 }
@@ -64,33 +60,42 @@ def mobile_endpoint(origin, interface_address, certificate_names):
     return origin.replace("https://", "wss://", 1) + "/orca-mobile"
 
 
-def observation(directory=SOCKET_DIR, now=None):
-    transport = "https"
+def observation(value, now=None, *, endpoint=""):
     try:
-        value = json.loads((Path(directory) / "status.json").read_bytes())
         if not isinstance(value, dict):
             raise TypeError
-        transport = "lan" if value.get("transport") == "lan" else "https"
         age = (time.time() if now is None else now) - value["observed"]
         state = value["state"] if 0 <= age < 75 and value["state"] in STATES else "offline"
     except (OSError, KeyError, TypeError, ValueError):
         state = "offline"
     label, detail = STATES[state]
-    return {"state": state, "label": label, "detail": detail, "transport": transport}
+    return {
+        "state": state,
+        "label": label,
+        "detail": detail,
+        "transport": "lan" if endpoint.startswith("ws://") else "https",
+    }
 
 
-def phone_offer(directory=SOCKET_DIR):
+def validate_offer(value, endpoint, job_id, generation, now=None):
+    try:
+        if (
+            value["schema"] != 1
+            or value["id"] != job_id
+            or value["generation"] != generation
+            or value["endpoint"] != endpoint
+            or not PAIR_URL.fullmatch(value["pairing_url"])
+            or not 0 < value["expires_at"] - (time.time() if now is None else now) <= PAIRING_TTL
+        ):
+            raise ValueError
+        return value["pairing_url"]
+    except (TypeError, KeyError, ValueError):
+        raise PairingError("The mobile pairing code is unavailable or has expired.") from None
+
+
+def pairing_qr(value):
     from markupsafe import Markup
 
-    with socket.socket(socket.AF_UNIX) as sock:
-        sock.settimeout(12)
-        sock.connect(str(Path(directory) / "pair.sock"))
-        sock.sendall(b"pair\n")
-        with sock.makefile("rb") as stream:
-            result = json.loads(stream.readline(12288))
-    value = result.get("pairing_url", "") if isinstance(result, dict) else ""
-    if not isinstance(value, str) or not PAIR_URL.fullmatch(value):
-        raise ValueError("Orca could not prepare a mobile pairing code.")
     # qrencode receives the credential on stdin. Its SVG stays in this private response.
     svg = subprocess.run(
         ["qrencode", "-t", "SVG", "--inline", "-m", "4", "-o", "-"],
@@ -102,4 +107,4 @@ def phone_offer(directory=SOCKET_DIR):
     ).stdout
     if "<svg" not in svg:
         raise ValueError("QR code unavailable.")
-    return value, Markup(svg)
+    return Markup(svg)
