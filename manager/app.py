@@ -3,6 +3,7 @@ import os
 import secrets
 import shutil
 import sqlite3
+import subprocess
 import time
 from datetime import timedelta
 from pathlib import Path
@@ -15,6 +16,7 @@ from werkzeug.exceptions import NotFound
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from manager import browser
 from manager.control import (
     TERMINAL_STATES,
     ControlError,
@@ -36,7 +38,11 @@ STEPS = [
     ("gitlab", "GitLab", "Connect your GitLab account to work with repositories."),
     ("forgejo", "Forgejo", "Register the runtime SSH key with your Forgejo instance."),
     ("desktop", "Mac desktop", "Pair through Orca and inspect the current connection."),
-    ("mobile", "Mobile app", "Use Orca's native pairing over your LAN or VPN."),
+    (
+        "mobile",
+        "Orca Mobile",
+        "Pair your phone to access server workspaces and the browser preview.",
+    ),
     ("mcp", "Community MCP bridge", "Use the existing bridge for external coordinators."),
     ("tunnel", "OpenAI Secure MCP Tunnel", "Connect the selected OpenAI tunnel to the bridge."),
 ]
@@ -65,6 +71,7 @@ def create_app(test_config=None):
         ORCA_WEB_URL=os.environ.get("ORCA_WEB_URL", ""),
         ORIGIN=os.environ.get("OSM_ORIGIN", "https://localhost"),
         CONTROL_DIR=os.environ.get("OSM_CONTROL_DIR"),
+        BROWSER_DIR=browser.SOCKET_DIR,
         ARCHITECTURE=os.environ.get("OSM_ARCHITECTURE", "amd64"),
         SESSION_COOKIE_NAME="__Host-osm",
         SESSION_COOKIE_SECURE=True,
@@ -137,7 +144,7 @@ def create_app(test_config=None):
         response.headers["Referrer-Policy"] = "same-origin"
         if request.endpoint in {"web_pairing", "web_pairing_job", "web_pairing_data"}:
             response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-        if request.endpoint in {"web_pairing_data", "git_progress"}:
+        if request.endpoint in {"web_pairing_data", "git_progress", "pair_mobile"}:
             response.headers["Referrer-Policy"] = "no-referrer"
         if request.is_secure:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
@@ -268,6 +275,7 @@ def create_app(test_config=None):
         deployment = snapshot.get("deployment", {}) if connected else {}
         return {
             "manager": "ok",
+            "browser": browser.observation(app.config["BROWSER_DIR"]),
             "controller": snapshot["controller"],
             "runtime": runtime,
             "integrations": integrations,
@@ -429,6 +437,8 @@ def create_app(test_config=None):
     @app.get("/connections/<name>")
     @login_required
     def connection(name):
+        if name == "mobile":
+            return render_template("mobile.html", status=current_status())
         if name in PROVIDERS:
             return redirect(url_for("git_provider", provider=name))
         if name not in {key for key, _, _ in STEPS}:
@@ -442,6 +452,22 @@ def create_app(test_config=None):
             status=snapshot,
             result=snapshot["runtime"] if name == "server" else snapshot["integrations"][name],
         )
+
+    @app.post("/connections/mobile/pair")
+    @login_required
+    def pair_mobile():
+        snapshot = current_status()
+        if snapshot["browser"]["state"] == "ready":
+            try:
+                link, qr = browser.phone_offer(app.config["BROWSER_DIR"])
+                return render_template("mobile.html", status=snapshot, link=link, qr=qr)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                pass
+        return render_template(
+            "mobile.html",
+            status=snapshot,
+            error="Orca could not prepare a code. Refresh the service status and try again.",
+        ), 503
 
     def cached_catalog(prefix, fetcher, page):
         cache = state / f"{prefix}-{page}.json"

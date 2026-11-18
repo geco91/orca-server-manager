@@ -9,6 +9,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from manager.browser import SOCKET_DIR, mobile_endpoint
 from manager.control import atomic_document
 from manager.pairing import manager_origin
 from manager.proxy import proxy_environment, proxy_target
@@ -64,6 +65,21 @@ if not (certs / "server.crt").exists() and not (certs / "server.key").exists():
     os.chmod(certs / "server.key", 0o600)
 if not (certs / "server.crt").is_file() or not (certs / "server.key").is_file():
     raise RuntimeError("Incomplete persistent HTTPS certificate; restore it before starting.")
+certificate_names = subprocess.check_output(
+    [
+        "openssl",
+        "x509",
+        "-in",
+        str(certs / "server.crt"),
+        "-noout",
+        "-nameopt",
+        "RFC2253",
+        "-subject",
+        "-issuer",
+    ],
+    text=True,
+)
+phone_endpoint = mobile_endpoint(origin, address, certificate_names)
 upstream = proxy_target(os.environ.get("OSM_CONTROL_DIR"), os.environ.get("OSM_ORCA_UPSTREAM", ""))
 
 
@@ -93,6 +109,14 @@ children = [
     ),
     start_proxy(upstream),
 ]
+browser_home = data / "browser"
+browser_home.mkdir(mode=0o700, exist_ok=True)
+os.chown(browser_home, 1001, 1001)
+SOCKET_DIR.mkdir(exist_ok=True)
+os.chown(SOCKET_DIR, 1001, 1000)
+os.chmod(SOCKET_DIR, 0o2750)
+browser = None
+retry_browser = 0
 stopping = False
 
 
@@ -106,6 +130,19 @@ signal.signal(signal.SIGINT, stop)
 try:
     observed_proxy = 0
     while not stopping and all(child.poll() is None for child in children):
+        if (browser is None or browser.poll() is not None) and time.monotonic() >= retry_browser:
+            browser = subprocess.Popen(
+                ["/usr/local/bin/python3", "/app/browser-service.py", "supervise"],
+                user=1001,
+                group=1001,
+                extra_groups=[],
+                env={
+                    "PATH": "/usr/local/bin:/usr/bin:/bin",
+                    "OSM_ORIGIN": origin,
+                    "OSM_PHONE_ENDPOINT": phone_endpoint,
+                },
+            )
+            retry_browser = time.monotonic() + 15
         if time.monotonic() - observed_proxy > 2:
             observed_proxy = time.monotonic()
             candidate = proxy_target(
@@ -119,6 +156,8 @@ try:
                 upstream = candidate
         time.sleep(0.25)
 finally:
+    if browser is not None:
+        children.append(browser)
     for child in children:
         if child.poll() is None:
             child.terminate()

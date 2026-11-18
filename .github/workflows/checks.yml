@@ -19,8 +19,8 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check manager tests scripts
       - run: uv run ruff format --check manager tests scripts
-      - run: uv run ruff check deploy/proxmox container/manager-service.py
-      - run: uv run ruff format --check deploy/proxmox container/manager-service.py
+      - run: uv run ruff check deploy/proxmox container/manager-service.py container/browser-service.py
+      - run: uv run ruff format --check deploy/proxmox container/manager-service.py container/browser-service.py
       - run: uv run pytest -q
       - run: docker compose -f compose/compose.yaml config --quiet
   containers:

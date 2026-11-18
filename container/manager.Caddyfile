@@ -5,8 +5,22 @@
 http://:80 {
     redir {$OSM_ORIGIN}{uri} 308
 }
+http://127.0.0.1:6769 {
+    bind 127.0.0.1
+    reverse_proxy {$OSM_ORCA_UPSTREAM:127.0.0.1:9}
+}
 https://:443 {
     tls /data/tls/server.crt /data/tls/server.key
+    @mobile {
+        path /orca-mobile
+        header Upgrade websocket
+    }
+    handle @mobile {
+        reverse_proxy 127.0.0.1:6768 {
+            header_up -Cookie
+            header_down -Set-Cookie
+        }
+    }
     @orca path /orca /orca/*
     handle @orca {
         reverse_proxy {$OSM_ORCA_UPSTREAM:127.0.0.1:9} {

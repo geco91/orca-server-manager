@@ -97,25 +97,29 @@ def extract_browser(source, raw, files, destination):
     (destination / MANIFEST).write_bytes(raw)
 
 
-def install(version, architecture, checksum, destination):
+def download_desktop(version, architecture, checksum, package):
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9][A-Za-z0-9.-]{0,60})?", version):
         raise ValueError("Invalid official browser version")
     if architecture not in {"x64", "arm64"} or not re.fullmatch(r"[a-f0-9]{64}", checksum):
         raise ValueError("A matching architecture and published desktop checksum are required")
     arch = "amd64" if architecture == "x64" else "arm64"
     url = f"https://github.com/stablyai/orca/releases/download/v{version}/orca-ide_{version}_{arch}.deb"
+    digest, size = hashlib.sha256(), 0
+    with urlopen(url, timeout=60) as response, package.open("wb") as output:
+        while block := response.read(1024 * 1024):
+            size += len(block)
+            if size > 350 * 2**20:
+                raise ValueError("Official desktop package exceeds the size limit")
+            digest.update(block)
+            output.write(block)
+    if digest.hexdigest() != checksum:
+        raise ValueError("Official desktop checksum mismatch")
+
+
+def install(version, architecture, checksum, destination):
     with tempfile.TemporaryDirectory() as temporary:
         package = Path(temporary) / "desktop.deb"
-        digest, size = hashlib.sha256(), 0
-        with urlopen(url, timeout=60) as response, package.open("wb") as output:
-            while block := response.read(1024 * 1024):
-                size += len(block)
-                if size > 350 * 2**20:
-                    raise ValueError("Official desktop package exceeds the size limit")
-                digest.update(block)
-                output.write(block)
-        if digest.hexdigest() != checksum:
-            raise ValueError("Official desktop checksum mismatch")
+        download_desktop(version, architecture, checksum, package)
         with package_tar(package) as source:
             raw, files = browser_manifest(source)
         with package_tar(package) as source:
@@ -129,5 +133,7 @@ if __name__ == "__main__":
     parser.add_argument("architecture", choices=["x64", "arm64"])
     parser.add_argument("sha256")
     parser.add_argument("destination", type=Path)
+    parser.add_argument("--package", action="store_true", help="Keep the verified desktop package")
     args = parser.parse_args()
-    install(args.version, args.architecture, args.sha256, args.destination)
+    operation = download_desktop if args.package else install
+    operation(args.version, args.architecture, args.sha256, args.destination)

@@ -37,13 +37,14 @@ class DeploymentError(ValueError):
     pass
 
 
-def run(args, *, timeout=120):
+def run(args, *, timeout=120, input_data=None):
     # PVE creates /var/lib/lxc/<id>/rootfs with inherited directory modes. Its
     # mapped OCI extractor needs the standard traversal rights during creation.
     native_create = args[:2] == ["pct", "create"]
     result = subprocess.run(
         args,
         capture_output=True,
+        input=input_data,
         text=True,
         timeout=timeout,
         check=False,
@@ -681,6 +682,61 @@ class Worker:
         finally:
             self.publish_status()
 
+    def enroll_browser(self):
+        # The runtime and manager are both fenced by their administrator-owned CT markers.
+        stamp = self.private / "browser-enrollment-attempt"
+        if stamp.exists() and time.time() - stamp.stat().st_mtime < 60:
+            return
+        self.own_container(self.cfg["manager_id"], "manager")
+        manager = [
+            "pct",
+            "exec",
+            str(self.cfg["manager_id"]),
+            "--",
+            "runuser",
+            "-u",
+            "orca-browser",
+            "--",
+            "/usr/local/bin/python3",
+            "/app/browser-service.py",
+        ]
+        stamp.touch(mode=0o600)
+        if self.run([*manager, "enrollment-needed"], timeout=10).strip() != "needed":
+            return
+        self.own_container(self.cfg["runtime_id"])
+        endpoint = "ws://127.0.0.1:6769"
+        raw = self.run(
+            [
+                "pct",
+                "exec",
+                str(self.cfg["runtime_id"]),
+                "--",
+                "runuser",
+                "-u",
+                "orca",
+                "--",
+                "/usr/local/bin/orca",
+                "pair",
+                "--address",
+                endpoint,
+                "--json",
+            ],
+            timeout=20,
+        )
+        offer = json.loads(raw)["result"]
+        if (
+            isinstance(offer, dict)
+            and offer.get("available") is True
+            and offer.get("scope") == "runtime"
+            and offer.get("endpoint") == endpoint
+            and isinstance(offer.get("pairingUrl"), str)
+        ):
+            self.run(
+                [*manager, "enroll"],
+                input_data=json.dumps({"pairingUrl": offer["pairingUrl"]}),
+                timeout=30,
+            )
+
     def tick(self):
         try:
             prune_pairings(self.control)
@@ -721,6 +777,19 @@ class Worker:
                 # Invalid requests never reach native commands; keep the original for inspection.
                 pass
             destination.rename(destination.with_suffix(".done"))
+
+        try:
+            self.enroll_browser()
+        except (
+            OSError,
+            DeploymentError,
+            ValueError,
+            KeyError,
+            TypeError,
+            subprocess.SubprocessError,
+        ):
+            # Older managers have no browser service. Enrollment is retried independently.
+            pass
 
     def pair_web(self, job):
         try:

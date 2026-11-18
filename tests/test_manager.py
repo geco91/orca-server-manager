@@ -97,7 +97,7 @@ def test_native_guides_are_optional_and_unobserved_status_stays_unknown(app):
                 == 200
             )
         assert "OpenAI Secure MCP Tunnel" in get(client, "/connections/tunnel").text
-        assert "orca pair --mobile" in get(client, "/connections/mobile").text
+        assert "Show pairing QR code" in get(client, "/connections/mobile").text
         result = post(client, "/actions/refresh", {"csrf_token": csrf(client, "/")})
         assert result.status_code == 503
 
